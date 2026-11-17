@@ -2,6 +2,8 @@
 
 Kumpulan plugin **Zeron** yang saya buat sendiri — bukan plugin bawaan Zeron.
 
+![Heatmap-LocLabs di bawah kotak chat New Chat](assets/heatmap-loclabs.png)
+
 Semua plugin di sini gratis, sumbernya terbuka, dan berjalan **di komputer kamu
 sendiri**. Tidak ada data yang dikirim ke server mana pun.
 
