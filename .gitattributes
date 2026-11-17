@@ -1,0 +1,2 @@
+# Keep every byte as authored: plugin signatures hash the exact file bytes.
+* -text

@@ -1,0 +1,30 @@
+{
+  "id": "heatmap-loclabs",
+  "name": "Heatmap-LocLabs",
+  "version": "1.2.0",
+  "description": "A local commit heatmap under a new chat, with the commits behind each day.",
+  "icon": "icon.svg",
+  "entry": "init.luau",
+  "service": "service.luau",
+  "permissions": [
+    "ui.add",
+    "sessions.read",
+    "service",
+    "commands"
+  ],
+  "commands": [
+    "git"
+  ],
+  "signature": {
+    "key": "qe0KcCOqgglmdlcmQdH38lS8wk-P2wEL0lS_5m7L9II",
+    "files": {
+      "README.md": "a67b7058f768192ba790163c3617d7008c8cffc1df605a06ea1c33ade3f80974",
+      "icon.svg": "12ff85b68819389654101fef4bc4fe1188aaed6e7d10f80957525d088da2c4cf",
+      "init.luau": "19acac7c16668110fce6168ce9f99412eb5657e9f0c4a4d4cb73176f99c6de84",
+      "locales/en.json": "e1bcb748587592bc8b63653c28d033e2ff666cfe8284a9037f26eef922595f4c",
+      "service.luau": "4c5bf7bad057dbac302d042ee008da59f65bcea23866696e84d6abc886a21b46",
+      "zeron.luau": "178b79b55566c9643b26181539b8e1348482179a169da98ba384cd66f3f8a483"
+    },
+    "sig": "WZAsXZCjNoWbFRMA3iHnUDScTaclm5LfewkL0MpRCsUfsOYXQJvQkIgDUFO_CaELFFz8xXz9QHhlHlJB_yR8AQ"
+  }
+}
