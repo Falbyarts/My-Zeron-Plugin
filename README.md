@@ -114,6 +114,9 @@ assets/                  gambar untuk dokumentasi
 Setiap folder di `plugins/` adalah satu plugin Zeron yang sudah ditandatangani.
 Jangan mengubah isinya kalau ingin dipasang lewat Zeron.
 
+Panduan membuat dan merawat plugin (dari dalam Zeron):
+[docs/development.md](docs/development.md).
+
 ## Privasi
 
 - Plugin membaca **hanya folder lokal** yang dipakai chat dan project di
