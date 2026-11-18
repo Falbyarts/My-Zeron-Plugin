@@ -31,7 +31,7 @@ Pilih **salah satu** cara di bawah. Cara 1 paling mudah dan tidak perlu Git.
 
 1. Buka halaman rilis Heatmap-LocLabs:
 
-   <https://github.com/falbyarts/zeron-plugins/releases/tag/heatmap-loclabs-v1.2.0>
+   <https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.2.0>
 
 2. **Salin alamat halaman itu** dari address bar browser
    (klik address bar, tekan `Ctrl+C`).
@@ -78,7 +78,7 @@ Cocok kalau kamu ingin plugin bisa dicek pembaruannya otomatis.
 Di Zeron → **Settings** → **Plugins** → **Install…**, tempel alamat ini:
 
 ```text
-https://github.com/falbyarts/zeron-plugins/tree/main/plugins/heatmap-loclabs
+https://github.com/Falbyarts/My-Zeron-Plugin/tree/main/plugins/heatmap-loclabs
 ```
 
 Cara ini membutuhkan Git yang sudah terpasang dan dikenali Zeron.

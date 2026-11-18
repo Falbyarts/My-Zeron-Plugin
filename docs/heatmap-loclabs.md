@@ -33,7 +33,7 @@ commit** hari itu: tanggal lengkap, jumlah commit, jam, dan pesan commit-nya.
 
 1. Buka halaman rilis:
 
-   <https://github.com/falbyarts/zeron-plugins/releases/tag/heatmap-loclabs-v1.2.0>
+   <https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.2.0>
 
 2. Salin alamat halaman itu dari address bar browser.
 3. Buka Zeron → **Settings** (ikon gerigi) → **Plugins** → **Install…**
@@ -55,7 +55,7 @@ commit** hari itu: tanggal lengkap, jumlah commit, jam, dan pesan commit-nya.
 Di **Settings** → **Plugins** → **Install…**, tempel:
 
 ```text
-https://github.com/falbyarts/zeron-plugins/tree/main/plugins/heatmap-loclabs
+https://github.com/Falbyarts/My-Zeron-Plugin/tree/main/plugins/heatmap-loclabs
 ```
 
 ---
