@@ -18,13 +18,13 @@
     "files": {
       "README.md": "bd706beffe62e28211ac01707964a567f67a6a6ab3495e62e4a6a3aac0ce4af7",
       "icon.svg": "12ff85b68819389654101fef4bc4fe1188aaed6e7d10f80957525d088da2c4cf",
-      "init.luau": "33c29d0b7e60f4dd73709fdb68ed2170ca6dd9b51028dab635cb7abf8550510f",
+      "init.luau": "81772a5b983969cb49a2f69881b17fb2ecd99e0cb9079cd528fa5d9d44981180",
       "locales/en.json": "593c4a73b9e832e4fe82c6c4e3389aaa67c23808f207a8c9c7a577b00657c9e9",
       "service.luau": "97c1644667aedd123966927bbe14751ec2470e951d55b3af5caf6291ea1022c6",
       "zeron.luau": "178b79b55566c9643b26181539b8e1348482179a169da98ba384cd66f3f8a483"
     },
     "key": "qe0KcCOqgglmdlcmQdH38lS8wk-P2wEL0lS_5m7L9II",
-    "sig": "odxKT2IvLk7CQWsxOR9CDjKy8fv6d3i2BF7Sxew-NI59zZnX1zrnxX0dsHffIB1Xw-mkEzKDWUJZOgRZMfN-DQ"
+    "sig": "Uqo8XVml233U5CVtSW_qxwDIxP5o83vy_yJMM5mm7YqODiAWqzmDVOsNru7Ss8PVqAz-XaYLafHAoNEHjbXkCQ"
   },
   "version": "1.3.0"
 }

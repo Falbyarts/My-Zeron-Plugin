@@ -37,6 +37,7 @@ local BELOW = 12
 -- commit, as many as the service keeps for a day.)
 local CARD_W = 340
 local CARD_LIST_H = 168
+local CARD_ROW_H = 18
 local CARD_GAP = 8
 local CARD_CLOSE = 260
 
@@ -203,7 +204,11 @@ local function DayCard(props: any): Node
 	end
 	local held = known.held
 	local n = entry_n(held)
-	local extra = math.max(0, n - #entry_commits(held))
+	local listed = #entry_commits(held)
+	-- (What the card's room shows at rest: the rest is under the scroll, and
+	-- the "+n" says how much until the list moves.)
+	local room = math.max(1, math.floor(CARD_LIST_H / CARD_ROW_H))
+	local extra = math.max(0, n - math.min(listed, room))
 	local column: number = tonumber(known.column) or 0
 	local left = math.clamp(
 		column * (CELL + GAP) + LABELS_W + 6 - math.floor((CARD_W - CELL) / 2),
