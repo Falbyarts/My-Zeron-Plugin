@@ -11,7 +11,7 @@ sendiri**. Tidak ada data yang dikirim ke server mana pun.
 
 | Plugin | Fungsi | Versi | Panduan |
 | --- | --- | --- | --- |
-| **Heatmap-LocLabs** | Heatmap setahun commit Git di bawah kotak chat New Chat. Arahkan kursor ke satu hari untuk melihat daftar commit hari itu — kartunya bisa di-scroll, dan ada tombol refresh di samping jumlah commit. | 1.3.0 | [Baca panduan](docs/heatmap-loclabs.md) |
+| **Heatmap-LocLabs** | Heatmap setahun commit Git di bawah kotak chat New Chat. Arahkan kursor ke satu hari untuk melihat daftar commit hari itu, dan klik tombol refresh di samping jumlah commit untuk membaca ulang folder Git. | 1.3.0 | [Baca panduan](docs/heatmap-loclabs.md) |
 
 ---
 
@@ -93,7 +93,7 @@ Cara ini membutuhkan Git yang sudah terpasang dan dikenali Zeron.
 | Muncul pesan `git_missing` | Install Git dari <https://git-scm.com/download/win>, lalu tutup dan buka lagi Zeron. |
 | Muncul pesan `tampered` atau `other_signer` | Unduh ulang file dari halaman rilis resmi ini. Jangan mengedit isi file plugin. |
 | Heatmap kosong, tidak ada kotak berwarna | Pastikan folder yang kamu buka di Zeron adalah repo Git dan sudah punya commit. |
-| Tertulis “Reading your commits…” terus | Git belum terbaca oleh Zeron. Install Git, lalu restart Zeron. |
+| Tertulis “Reading your commits…” terus | Git belum terbaca oleh Zeron. Pastikan Git terpasang, klik tombol **refresh**, atau tunggu plugin mencoba lagi sendiri. Masih terus? Restart Zeron. |
 | Tertulis “Allow Heatmap-LocLabs…” | Plugin belum diizinkan. Buka Settings → Plugins, lalu izinkan plugin itu. |
 | Kartu commit tidak muncul saat kursor diarahkan | Pastikan kamu ada di **New Chat**, lalu arahkan kursor tepat ke kotak hari yang berwarna dan tunggu sebentar. |
 
