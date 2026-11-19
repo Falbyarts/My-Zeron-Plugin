@@ -7,14 +7,15 @@
 -- since the grid's first Sunday. Every commit counts, whichever of the
 -- person's emails authored it, and each is counted once, by its id, on the
 -- day it was committed on this device. The answer is kept five minutes,
--- because a window can close and open again; nothing of a repository's files
--- is read here.
+-- because a window can close and open again; `force` (the count's refresh)
+-- reads the folders again at once. Nothing of a repository's files is read
+-- here.
 
 local zeron = require("./zeron")("heatmap-loclabs")
 
 local TTL = 300
 local MOST_FOLDERS = 32
-local MOST_PER_DAY = 40
+local MOST_PER_DAY = 120
 
 local store = zeron.store("commits-v2", { at = 0 } :: any)
 
@@ -68,9 +69,9 @@ local function default_since(): string
 	return os.date("%Y-%m-%d", back - (date.wday - 1) * 86400)
 end
 
-local function year(since: string): any
+local function year(since: string, force: boolean): any
 	local cached = store:get() or {}
-	if cached.since == since and os.time() - (tonumber(cached.at) or 0) < TTL then
+	if not force and cached.since == since and os.time() - (tonumber(cached.at) or 0) < TTL then
 		return cached
 	end
 
@@ -153,5 +154,5 @@ zeron.serve("year", function(args: any): any
 	if not string.match(since, "^%d%d%d%d%-%d%d%-%d%d$") then
 		since = default_since()
 	end
-	return year(since)
+	return year(since, type(args) == "table" and args.force == true)
 end, { safe = true })
