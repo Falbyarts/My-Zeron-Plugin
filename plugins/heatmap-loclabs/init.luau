@@ -5,18 +5,19 @@
 -- below its foot, on a new chat only. The commits are this device's own
 -- chats' and projects' folders, read by the plugin's service (`year`), and
 -- each day is a cell in a 53-week grid, Sunday first: no commits in the
--- text's ink, more in the theme's accent. Nothing is coloured raw, so the
--- grid follows the theme and the accent the person chose: the canvas bakes
--- plain colours as it is built, so the theme is read where they're made.
+-- text's ink, more in the accent the person chose. The canvas asks the
+-- theme for its colours as it draws, so the grid and the legend beside it
+-- stay one colour in light and in dark.
 --
 -- The header's refresh asks the service again at once, past its five-minute
--- cache. A day's card is the plugin's own, not a tooltip: the pointer moves
--- into it and its list scrolls, so a busy day reads whole, its "+n" fading
--- as the list moves under it.
+-- cache, a ring turning in the glyph's place while it waits. A day's card is
+-- a popover of its own: the pointer moves into it and its list scrolls, so a
+-- busy day reads whole, its "+n" fading as the list moves under it.
 
 local zeron = require("./zeron")("heatmap-loclabs")
 local ink = require("@ds/visual_ink")
-local HoverCard = require("@ds/hover_card")
+local Icon = require("@ds/icon")
+local status = require("@ds/status")
 local IconButton = require("@ds/icon_button").IconButton
 
 local COLUMNS = 53
@@ -33,20 +34,19 @@ local GRID_TOP = HEADER_H + 4 + MONTH_H + 4
 local HEIGHT = GRID_TOP + GRID_H
 local BELOW = 12
 
--- (The card floats over the composer's foot, its list scrolling: one line a
--- commit, as many as the service keeps for a day.)
+-- (The card lists a day's commits, one line each, as many as the service
+-- keeps for it, in a scroll the pointer can enter.)
 local CARD_W = 340
 local CARD_LIST_H = 168
-local CARD_ROW_H = 18
-local CARD_GAP = 8
+local CARD_ROW_H = 19
 local CARD_CLOSE = 260
 
 -- How far the ink is laid: a day with no commits is barely there; each
 -- level is fuller. Light needs a touch more than dark to read the same on
--- its paper.
+-- its paper, and its empty cells a little more still to show at all.
 local WASH = {
 	dark = { empty = 0.08, levels = { 0.28, 0.48, 0.72, 1 } },
-	light = { empty = 0.14, levels = { 0.32, 0.54, 0.76, 1 } },
+	light = { empty = 0.18, levels = { 0.32, 0.54, 0.76, 1 } },
 }
 local DAYS = { "", "Mon", "", "Wed", "", "Fri", "" }
 local MONTHS = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" }
@@ -55,6 +55,7 @@ local REFRESH = 300
 local data = ui.state("heatmap-loclabs.year.v2", nil :: any)
 local pending = ui.state("heatmap-loclabs.pending", false)
 local card = ui.state("heatmap-loclabs.card", nil :: any)
+local card_open = ui.state("heatmap-loclabs.card.open", false)
 local card_offset = ui.state("heatmap-loclabs.card.offset", 0)
 local card_hovered = false
 local card_close = 0
@@ -93,10 +94,14 @@ local function level_of(count: number): number
 	return 4
 end
 
--- Light or dark as the theme worn now says it: its background's ink, so any
--- theme reads right, the person's own included.
+-- Light or dark as the theme worn now says it: the theme's own kind, so a
+-- light theme's paper is read as light whatever its name.
 local function scheme_of(): string
 	ui.theme.current:get()
+	local kind = ui.theme.kind()
+	if type(kind) == "string" then
+		return if string.find(kind, "light", 1, true) then "light" else "dark"
+	end
 	local bg = ui.theme.get("background")
 	if type(bg) == "string" and #bg >= 7 then
 		local r = (tonumber(string.sub(bg, 2, 3), 16) or 0) / 255
@@ -118,13 +123,17 @@ local function tint(level: number): string
 	return if level == 0 then "$text.primary" else "$accent"
 end
 
-local function swatch(level: number, scheme: string): Node
+-- A legend swatch in the theme's accent: its alpha follows the scheme as it
+-- is worn, so a switch repaints it with the grid.
+local function swatch(level: number): Node
 	return ui.div {
 		w = 9,
 		h = 9,
 		rounded = ui.raw(2, "a heatmap cell's corner, at GitHub's scale"),
 		bg = tint(level),
-		opacity = wash(level, scheme),
+		opacity = function(): number
+			return wash(level, scheme_of())
+		end,
 		shrink = 0,
 	}
 end
@@ -194,82 +203,96 @@ local function commit_rows(held: any): { Node }
 	return rows
 end
 
--- A day's card, in the grid's own tree: the pointer comes in off the cell
--- and rests on it, its list scrolling under the wheel. The "+n" stays in
--- the card's foot and fades as the list moves away from its top.
+-- A leave keeps the card a moment: the pointer may be crossing from its day
+-- into the card itself. A later hover disowns the wait.
+local function close_soon()
+	card_close += 1
+	local gen = card_close
+	ui.after(CARD_CLOSE, function()
+		if gen == card_close and not card_hovered then
+			card_open:set(false)
+			card:set(nil)
+		end
+	end)
+end
+
+-- A day's card, a popover anchored on its cell so it is above the page's
+-- own surface and takes the pointer: the list scrolls under the wheel, and
+-- the "+n" stays in its foot, fading as the list moves from its top.
 local function DayCard(props: any): Node
-	local known = props.card:get()
-	if type(known) ~= "table" then
-		return ui.div { w = 0, h = 0 }
-	end
-	local held = known.held
-	local n = entry_n(held)
-	local listed = #entry_commits(held)
-	-- (What the card's room shows at rest: the rest is under the scroll, and
-	-- the "+n" says how much until the list moves.)
-	local room = math.max(1, math.floor(CARD_LIST_H / CARD_ROW_H))
-	local extra = math.max(0, n - math.min(listed, room))
-	local column: number = tonumber(known.column) or 0
-	local left = math.clamp(
-		column * (CELL + GAP) + LABELS_W + 6 - math.floor((CARD_W - CELL) / 2),
-		0,
-		WIDTH - CARD_W
-	)
-	local children: { Node } = {
-		ui.text {
-			zeron.t("day_commits", { date = day_label(tonumber(known.at) or 0), n = n }),
-			w_full = true,
-			text_size = "$font.size.xs",
-			line_height = "$font.line.xs",
-			color = "$text.secondary",
-		},
-		ui.scroll {
-			w_full = true,
-			max_h = CARD_LIST_H,
-			offset = card_offset,
-			fade = { 10, 10 },
-			fade_overflow = true,
-			ui.column { w_full = true, gap = 3, table.unpack(commit_rows(held)) },
-		},
-	}
-	if extra > 0 then
-		table.insert(
-			children,
-			ui.text {
-				zeron.t("more_n", { n = extra }),
-				w_full = true,
-				text_size = "$font.size.xs",
-				line_height = "$font.line.xs",
-				color = "$text.tertiary",
-				opacity = function(): number
-					return math.max(0, 1 - card_offset:get() / 24)
-				end,
-			}
-		)
-	end
-	return HoverCard.Card {
-		absolute = true,
-		left = left,
-		bottom = HEIGHT - (GRID_TOP - CARD_GAP),
+	return ui.popover {
+		open = props.open,
+		anchor = props.anchor,
+		placement = { side = "top", align = "center", offset = 0 },
 		w = CARD_W,
 		p = "$space.2",
 		gap = "$space.1",
-		pointer_events = "auto",
-		on_hover = function(inside: boolean)
-			card_hovered = inside
-			if inside then
-				card_close += 1
-			else
-				card_close += 1
-				local gen = card_close
-				ui.after(CARD_CLOSE, function()
-					if gen == card_close and not card_hovered then
-						card:set(nil)
-					end
-				end)
+		autofocus = false,
+		on_close = function()
+			if props.open:peek() then
+				props.open:set(false)
+				props.card:set(nil)
 			end
 		end,
-		table.unpack(children),
+		build = function(): Node
+			local known = props.card:get()
+			if type(known) ~= "table" then
+				return ui.div { w = 0, h = 0 }
+			end
+			local held = known.held
+			local n = entry_n(held)
+			local listed = #entry_commits(held)
+			-- (What the card's room shows at rest: the rest is under the
+			-- scroll, and the "+n" says how much until the list moves.)
+			local room = math.max(1, math.floor(CARD_LIST_H / CARD_ROW_H))
+			local extra = math.max(0, n - math.min(listed, room))
+			local children: { Node } = {
+				ui.text {
+					zeron.t("day_commits", { date = day_label(tonumber(known.at) or 0), n = n }),
+					w_full = true,
+					text_size = "$font.size.xs",
+					line_height = "$font.line.xs",
+					color = "$text.secondary",
+				},
+				ui.scroll {
+					w_full = true,
+					max_h = CARD_LIST_H,
+					offset = card_offset,
+					fade = { 10, 10 },
+					fade_overflow = true,
+					ui.column { w_full = true, gap = 3, table.unpack(commit_rows(held)) },
+				},
+			}
+			if extra > 0 then
+				table.insert(
+					children,
+					ui.text {
+						zeron.t("more_n", { n = extra }),
+						w_full = true,
+						text_size = "$font.size.xs",
+						line_height = "$font.line.xs",
+						color = "$text.tertiary",
+						opacity = function(): number
+							return math.max(0, 1 - card_offset:get() / 24)
+						end,
+					}
+				)
+			end
+			return ui.column {
+				w_full = true,
+				gap = "$space.1",
+				on_hover = function(inside: boolean)
+					if inside then
+						card_hovered = true
+						card_close += 1
+					else
+						card_hovered = false
+						close_soon()
+					end
+				end,
+				table.unpack(children),
+			}
+		end,
 	}
 end
 
@@ -297,10 +320,11 @@ local function day_slot(start: number, day: string): number?
 end
 
 -- The grid on one canvas: 371 small squares are cheaper drawn than built
--- as nodes, and the drawing follows the theme by the colours it is built
--- with. Days with commits carry an invisible square over their cell: the
--- pointer rests on it and its card lists the day.
-local function grid(start: number, known: any, home: () -> boolean, colors: { [number]: any }): Node
+-- as nodes. The colours are asked for in the draw, so a theme change repaints
+-- the grid in its accent with the legend. Days with commits carry an
+-- invisible square over their cell: the pointer rests on it and its card
+-- lists the day.
+local function grid(start: number, known: any, home: () -> boolean): Node
 	local days: any = if type(known) == "table" then known.days or {} else {}
 	local marks: { [number]: number } = {}
 	local overlays: { Node } = {}
@@ -328,21 +352,15 @@ local function grid(start: number, known: any, home: () -> boolean, colors: { [n
 						return if home() then "auto" else "none"
 					end,
 					on_hover = function(inside: boolean)
-						if not home() then
-							return
-						end
 						if inside then
 							card_close += 1
+							card_hovered = false
 							card_offset:set(0)
-							card:set({ at = first_at, held = held, column = column })
+							card:set({ at = first_at, held = held, column = column, row = row })
+							card_open:set(true)
 						else
-							card_close += 1
-							local gen = card_close
-							ui.after(CARD_CLOSE, function()
-								if gen == card_close and not card_hovered then
-									card:set(nil)
-								end
-							end)
+							card_hovered = false
+							close_soon()
 						end
 					end,
 				}
@@ -359,6 +377,17 @@ local function grid(start: number, known: any, home: () -> boolean, colors: { [n
 			w = GRID_W,
 			h = GRID_H,
 			draw = function(c: any)
+				-- (Read here, in the draw: the theme's colours now, and a
+				-- change asks for the canvas again.)
+				ui.theme.current:get()
+				local scheme = scheme_of()
+				local colors: { [number]: any } = {}
+				for level = 0, 4 do
+					colors[level] = ink.canvas({
+						token = if level == 0 then "text" else "accent",
+						alpha = wash(level, scheme),
+					})
+				end
 				for column = 0, COLUMNS - 1 do
 					for row = 0, ROWS - 1 do
 						local level = level_of(marks[column * 7 + row] or 0)
@@ -395,18 +424,6 @@ local function Heatmap(props: any): Node
 	local known: any = props.data:get() or {}
 	local total: number = tonumber(known.total) or 0
 	local start: number = props.start
-	local scheme = scheme_of()
-
-	-- (Laid now, as the canvas takes plain colours: a theme change builds
-	-- the grid again in its accent, the legend's swatches following by
-	-- themselves.)
-	local colors: { [number]: any } = {}
-	for level = 0, 4 do
-		colors[level] = ink.canvas({
-			token = if level == 0 then "text" else "accent",
-			alpha = wash(level, scheme),
-		})
-	end
 
 	-- One date a week: the label sits where a week holds a month's first day.
 	local months: { Node } = {}
@@ -488,14 +505,27 @@ local function Heatmap(props: any): Node
 					shrink = 0,
 				},
 				IconButton {
-					icon = "refresh",
 					label = zeron.t("refresh"),
 					size = "sm",
 					tone = "quiet",
 					tooltip_side = "bottom",
+					pointer_events = "auto",
 					on_click = function()
 						props.refresh()
 					end,
+					-- (The glyph gives way to a ring while the read waits.)
+					ui.show(
+						function(): boolean
+							return not pending:get()
+						end,
+						Icon { name = "refresh", size = 14 }
+					),
+					ui.show(
+						function(): boolean
+							return pending:get()
+						end,
+						status.Spinner { size = 12, ink = "$text.tertiary" }
+					),
 				},
 			},
 			ui.row {
@@ -503,11 +533,11 @@ local function Heatmap(props: any): Node
 				gap = 4,
 				shrink = 0,
 				ui.text { zeron.t("less"), text_size = "$font.size.xs", color = "$text.tertiary" },
-				swatch(0, scheme),
-				swatch(1, scheme),
-				swatch(2, scheme),
-				swatch(3, scheme),
-				swatch(4, scheme),
+				swatch(0),
+				swatch(1),
+				swatch(2),
+				swatch(3),
+				swatch(4),
 				ui.text { zeron.t("more"), text_size = "$font.size.xs", color = "$text.tertiary" },
 			},
 		},
@@ -531,8 +561,29 @@ local function Heatmap(props: any): Node
 			h = GRID_H,
 			gap = 6,
 			ui.column { w = LABELS_W, h = GRID_H, gap = GAP, shrink = 0, table.unpack(labels) },
-			grid(start, known, props.home, colors),
+			grid(start, known, props.home),
 		},
+	}
+end
+
+-- The point a card hangs from: the middle of the day it is about, in the
+-- plugin's own coordinates, moving with the card's state.
+local function CardAnchor(): Node
+	return ui.div {
+		absolute = true,
+		left = function(): number
+			local known = card:get()
+			local column = if type(known) == "table" then tonumber(known.column) or 0 else 0
+			return LABELS_W + 6 + column * (CELL + GAP)
+		end,
+		top = function(): number
+			local known = card:get()
+			local row = if type(known) == "table" then tonumber(known.row) or 0 else 0
+			return GRID_TOP + row * (CELL + GAP)
+		end,
+		w = CELL,
+		h = CELL,
+		pointer_events = "none",
 	}
 end
 
@@ -591,6 +642,17 @@ zeron.place {
 			load(false)
 		end)
 
+		-- (Leaving the new chat puts a day's card away with the grid.)
+		ui.effect(function()
+			local where = route()
+			if (type(where) ~= "table" or where.name ~= "home") and card_open:peek() then
+				card_open:set(false)
+				card:set(nil)
+			end
+		end)
+
+		local anchor = CardAnchor()
+
 		return ui.div {
 			id = "heatmap-loclabs",
 			absolute = true,
@@ -613,7 +675,8 @@ zeron.place {
 					load(true)
 				end,
 			},
-			DayCard { card = card },
+			anchor,
+			DayCard { card = card, open = card_open, anchor = anchor },
 		}
 	end,
 }
