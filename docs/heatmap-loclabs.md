@@ -8,6 +8,10 @@ warnanya, makin banyak commit di hari itu.
 
 Arahkan kursor ke kotak hari yang berwarna, dan muncul **kartu berisi daftar
 commit** hari itu: tanggal lengkap, jumlah commit, jam, dan pesan commit-nya.
+Kartu itu bisa dimasuki kursor dan **di-scroll** kalau commit-nya banyak.
+
+Di samping tulisan jumlah commit ada tombol **refresh** kecil: klik untuk
+membaca folder Git lagi saat itu juga, tanpa menunggu cache 5 menit.
 
 ---
 
@@ -33,7 +37,7 @@ commit** hari itu: tanggal lengkap, jumlah commit, jam, dan pesan commit-nya.
 
 1. Buka halaman rilis:
 
-   <https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.2.0>
+   <https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.3.0>
 
 2. Salin alamat halaman itu dari address bar browser.
 3. Buka Zeron → **Settings** (ikon gerigi) → **Plugins** → **Install…**
@@ -44,7 +48,7 @@ commit** hari itu: tanggal lengkap, jumlah commit, jam, dan pesan commit-nya.
 ### Lewat file `.zeron-plugin`
 
 1. Di halaman rilis, buka bagian **Assets**.
-2. Unduh `heatmap-loclabs-1.2.0.zeron-plugin`.
+2. Unduh `heatmap-loclabs-1.3.0.zeron-plugin`.
 3. Buka Zeron → **Settings** → **Plugins** → **Install…**
 4. Pilih file yang baru diunduh.
 5. Klik **Allow** / **Izinkan**.
@@ -75,9 +79,14 @@ https://github.com/Falbyarts/My-Zeron-Plugin/tree/main/plugins/heatmap-loclabs
    - tanggal lengkap (contoh: *Saturday, 07 November 2026*),
    - jumlah commit hari itu,
    - daftar commit, **terbaru di atas**, masing-masing dengan jam dan pesannya.
+6. Kursor bisa masuk ke dalam kartu, lalu **scroll** (roda mouse) untuk melihat
+   commit lainnya. Tulisan **+N more** di kaki kartu memudar sambil kamu
+   scroll, dan kembali saat daftar digulir ke atas lagi.
+7. Untuk membaca folder Git segera setelah commit baru, klik tombol **refresh**
+   kecil di samping tulisan jumlah commit.
 
-Kalau satu hari punya lebih dari 10 commit, kartu menampilkan 10 commit
-terbaru lalu tulisan **+N more**.
+Semua commit yang tersimpan untuk hari itu (maksimal 120) bisa dilihat lewat
+scroll; **+N more** hanya muncul untuk commit yang melebihi batas simpan itu.
 
 > Heatmap hanya muncul di **New Chat**, bukan di halaman percakapan yang sedang
 > berjalan. Ini supaya tidak mengganggu saat kamu mengetik atau membaca chat.
@@ -94,10 +103,11 @@ terbaru lalu tulisan **+N more**.
   lama dan baru tetap muncul.
 - Satu commit dihitung satu kali, walaupun folder yang sama muncul di beberapa
   chat atau project.
-- Jumlah folder maksimal 32, dan tiap hari disimpan maksimal 40 commit untuk
+- Jumlah folder maksimal 32, dan tiap hari disimpan maksimal 120 commit untuk
   daftar di kartu.
 - Hasil disimpan selama **5 menit**. Membuka New Chat lagi setelah itu akan
-  membaca ulang folder Git.
+  membaca ulang folder Git; tombol **refresh** di samping jumlah commit
+  membaca ulang segera, tanpa menunggu.
 
 Yang **tidak** dibaca:
 
@@ -185,6 +195,9 @@ kamu **tidak** terhapus.
 
 ## Riwayat versi
 
+- **1.3.0** — tombol refresh di samping jumlah commit; kartu commit bisa
+  di-scroll untuk melihat semua commit satu hari; warna grid dan legend
+  konsisten di mode terang maupun gelap.
 - **1.2.0** — kartu commit saat kursor diarahkan ke satu hari; tanggal, jumlah,
   jam, dan pesan commit.
 - **1.1.0** — heatmap setahun di bawah kotak chat New Chat, mengikuti warna

@@ -11,7 +11,7 @@ sendiri**. Tidak ada data yang dikirim ke server mana pun.
 
 | Plugin | Fungsi | Versi | Panduan |
 | --- | --- | --- | --- |
-| **Heatmap-LocLabs** | Heatmap setahun commit Git di bawah kotak chat New Chat. Arahkan kursor ke satu hari untuk melihat daftar commit hari itu. | 1.2.0 | [Baca panduan](docs/heatmap-loclabs.md) |
+| **Heatmap-LocLabs** | Heatmap setahun commit Git di bawah kotak chat New Chat. Arahkan kursor ke satu hari untuk melihat daftar commit hari itu — kartunya bisa di-scroll, dan ada tombol refresh di samping jumlah commit. | 1.3.0 | [Baca panduan](docs/heatmap-loclabs.md) |
 
 ---
 
@@ -31,7 +31,7 @@ Pilih **salah satu** cara di bawah. Cara 1 paling mudah dan tidak perlu Git.
 
 1. Buka halaman rilis Heatmap-LocLabs:
 
-   <https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.2.0>
+   <https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.3.0>
 
 2. **Salin alamat halaman itu** dari address bar browser
    (klik address bar, tekan `Ctrl+C`).
@@ -58,7 +58,7 @@ Cara ini cocok kalau kamu lebih suka mengunduh file langsung.
 1. Buka halaman rilis di atas.
 
 2. Di bagian **Assets**, klik file
-   `heatmap-loclabs-1.2.0.zeron-plugin` untuk mengunduh.
+   `heatmap-loclabs-1.3.0.zeron-plugin` untuk mengunduh.
 
 3. Buka Zeron → **Settings** → **Plugins** → **Install…**
 
@@ -106,7 +106,7 @@ versi Zeron, versi Windows, dan pesan error yang muncul.
 
 ```text
 plugins/                 plugin Zeron, satu folder per plugin
-  heatmap-loclabs/       Heatmap-LocLabs 1.2.0 (siap dipasang)
+  heatmap-loclabs/       Heatmap-LocLabs 1.3.0 (siap dipasang)
 docs/                    panduan tiap plugin
 assets/                  gambar untuk dokumentasi
 ```
