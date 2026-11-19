@@ -14,7 +14,7 @@ cadangan, jadi arah sinkronnya selalu **folder hidup → repo**, bukan sebalikny
 
 ## Persiapan (sekali saja)
 
-1. Pastikan folder `E:\zgx_plugin` sudah terdaftar sebagai project **zgx_plugin**
+1. Pastikan folder misal `E:\zgx_plugin` sudah terdaftar sebagai project **zgx_plugin**
    di Zeron.
 2. Setiap kali membuka chat untuk repo ini:
    - klik **New Chat**,
