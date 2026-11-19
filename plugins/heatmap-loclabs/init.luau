@@ -51,6 +51,19 @@ local REFRESH = 300
 
 local data = ui.state("heatmap-loclabs.year.v2", nil :: any)
 local pending = ui.state("heatmap-loclabs.pending", false)
+local pending_at = ui.state("heatmap-loclabs.pending_at", 0)
+-- (A read still out when the plugin reloads never answers: its promise was
+-- the old load's. Start the next load clean, as Zeron's own modules do, and
+-- let a read's token be shared, so one from an old load is let go.)
+local latest = ui.state("heatmap-loclabs.read", "")
+local LOAD = tostring({})
+do
+	local was = pending:peek()
+	if was then
+		pending:set(false)
+		pending_at:set(0)
+	end
+end
 
 local function day_of(at: number): string
 	return os.date("%Y-%m-%d", at)
@@ -332,7 +345,13 @@ local function grid(start: number, known: any, home: () -> boolean): Node
 	}
 end
 
+local month_lengths: { [number]: number } = {}
 local function month_length(year: number, month: number): number
+	local key = year * 12 + month
+	local had = month_lengths[key]
+	if had then
+		return had
+	end
 	local start_at = os.time({ year = year, month = month, day = 1, hour = 12, min = 0, sec = 0 } :: any)
 	local next_at = os.time({
 		year = if month == 12 then year + 1 else year,
@@ -342,7 +361,20 @@ local function month_length(year: number, month: number): number
 		min = 0,
 		sec = 0,
 	} :: any)
-	return math.floor((next_at - start_at) / 86400 + 0.5)
+	local days = math.floor((next_at - start_at) / 86400 + 0.5)
+	month_lengths[key] = days
+	return days
+end
+
+-- (The labels ask for a month's length a week at a time; the years the grid
+-- spans are measured once as the plugin loads, not in a build.)
+do
+	local year = (os.date("*t", grid_start()) :: any).year
+	for y = year, year + 1 do
+		for m = 1, 12 do
+			month_length(y, m)
+		end
+	end
 end
 
 local function Heatmap(props: any): Node
@@ -502,13 +534,27 @@ zeron.place {
 			return type(where) == "table" and where.name == "home"
 		end
 
+		-- (`force`: the refresh never waits on a read already out. A newer
+		-- read's answer is the one shown; an older one is let go, even one
+		-- from before a reload.)
+		local reads = 0
 		local function load(force: boolean)
-			if pending:get() then
+			-- (A read that never answered is let go too, so the grid can't
+			-- wait on one forever.)
+			local waited = os.time() - (tonumber(pending_at:peek()) or 0)
+			if pending:peek() and not force and waited < 60 then
 				return
 			end
+			reads += 1
+			local mine = `{LOAD}:{reads}`
+			latest:set(mine)
 			pending:set(true)
-			zeron.service():call("year", { since = since, force = force }, { timeout = 120 }):after(
+			pending_at:set(os.time())
+			zeron.service():call("year", { since = since, force = force }, { timeout = 30 }):after(
 				function(value: any)
+					if latest:get() ~= mine then
+						return
+					end
 					pending:set(false)
 					value = if type(value) == "table" then value else {}
 					data:set({
@@ -519,6 +565,9 @@ zeron.place {
 					})
 				end,
 				function(err: any)
+					if latest:get() ~= mine then
+						return
+					end
 					pending:set(false)
 					local had: any = table.clone(data:peek() or {})
 					had.at = os.time()
@@ -529,21 +578,33 @@ zeron.place {
 			)
 		end
 
+		-- Five minutes of a grid is enough; a failed read is asked again
+		-- sooner, and a stale one when the window comes back to a new chat.
+		local function due(): boolean
+			local known: any = data:peek()
+			return not (
+				type(known) == "table"
+				and known.since == since
+				and known.error == nil
+				and os.time() - (tonumber(known.at) or 0) < REFRESH
+			)
+		end
+
 		ui.effect(function()
 			local where = route()
 			if type(where) ~= "table" or where.name ~= "home" then
 				return
 			end
-			local known: any = data:peek()
-			if
-				type(known) == "table"
-				and known.since == since
-				and known.error == nil
-				and os.time() - (tonumber(known.at) or 0) < REFRESH
-			then
-				return
+			if due() then
+				load(false)
 			end
-			load(false)
+			-- (Resting here is no reason to leave an old grid up, or a read
+			-- that failed while the service was still starting.)
+			ui.every(30000, function()
+				if home() and due() then
+					load(false)
+				end
+			end)
 		end)
 
 		return ui.div {
