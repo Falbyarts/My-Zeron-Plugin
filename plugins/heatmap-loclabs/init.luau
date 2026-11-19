@@ -11,11 +11,12 @@
 --
 -- The header's refresh asks the service again at once, past its five-minute
 -- cache, a ring turning in the glyph's place while it waits. A day's card is
--- a popover of its own: the pointer moves into it and its list scrolls, so a
--- busy day reads whole, its "+n" fading as the list moves under it.
+-- the pointer's own tooltip, as zgx shows them: a popup layer that opens fast
+-- and turns inward at the window's edge, listing the day's commits.
 
 local zeron = require("./zeron")("heatmap-loclabs")
 local ink = require("@ds/visual_ink")
+local HoverCard = require("@ds/hover_card")
 local Icon = require("@ds/icon")
 local status = require("@ds/status")
 local IconButton = require("@ds/icon_button").IconButton
@@ -34,12 +35,8 @@ local GRID_TOP = HEADER_H + 4 + MONTH_H + 4
 local HEIGHT = GRID_TOP + GRID_H
 local BELOW = 12
 
--- (The card lists a day's commits, one line each, as many as the service
--- keeps for it, in a scroll the pointer can enter.)
+local MAX_LISTED = 10
 local CARD_W = 340
-local CARD_LIST_H = 168
-local CARD_ROW_H = 19
-local CARD_CLOSE = 260
 
 -- How far the ink is laid: a day with no commits is barely there; each
 -- level is fuller. Light needs a touch more than dark to read the same on
@@ -54,11 +51,6 @@ local REFRESH = 300
 
 local data = ui.state("heatmap-loclabs.year.v2", nil :: any)
 local pending = ui.state("heatmap-loclabs.pending", false)
-local card = ui.state("heatmap-loclabs.card", nil :: any)
-local card_open = ui.state("heatmap-loclabs.card.open", false)
-local card_offset = ui.state("heatmap-loclabs.card.offset", 0)
-local card_hovered = false
-local card_close = 0
 
 local function day_of(at: number): string
 	return os.date("%Y-%m-%d", at)
@@ -173,7 +165,11 @@ end
 
 local function commit_rows(held: any): { Node }
 	local rows: { Node } = {}
-	for _, commit in entry_commits(held) do
+	local commits = entry_commits(held)
+	for index, commit in commits do
+		if index > MAX_LISTED then
+			break
+		end
 		local subject = one_line(tostring(commit.subject or ""), 90)
 		if subject == "" then
 			subject = zeron.t("untitled")
@@ -182,11 +178,23 @@ local function commit_rows(held: any): { Node }
 			rows,
 			ui.text {
 				`{os.date("%H:%M", tonumber(commit.at) or 0)}  {subject}`,
-				w_full = true,
 				weight = "$font.weight.medium",
 				text_size = "$font.size.sm",
 				line_height = "$font.line.sm",
 				color = "$text.primary",
+			}
+		)
+	end
+	local n = if type(held) == "table" then tonumber(held.n) or #commits else tonumber(held) or 0
+	local extra = n - #rows
+	if extra > 0 then
+		table.insert(
+			rows,
+			ui.text {
+				zeron.t("more_n", { n = extra }),
+				text_size = "$font.size.xs",
+				line_height = "$font.line.xs",
+				color = "$text.tertiary",
 			}
 		)
 	end
@@ -203,96 +211,20 @@ local function commit_rows(held: any): { Node }
 	return rows
 end
 
--- A leave keeps the card a moment: the pointer may be crossing from its day
--- into the card itself. A later hover disowns the wait.
-local function close_soon()
-	card_close += 1
-	local gen = card_close
-	ui.after(CARD_CLOSE, function()
-		if gen == card_close and not card_hovered then
-			card_open:set(false)
-			card:set(nil)
-		end
-	end)
-end
-
--- A day's card, a popover anchored on its cell so it is above the page's
--- own surface and takes the pointer: the list scrolls under the wheel, and
--- the "+n" stays in its foot, fading as the list moves from its top.
-local function DayCard(props: any): Node
-	return ui.popover {
-		open = props.open,
-		anchor = props.anchor,
-		placement = { side = "top", align = "center", offset = 0 },
+local function day_card(at: number, held: any): Node
+	local n = entry_n(held)
+	return HoverCard.Card {
 		w = CARD_W,
-		p = "$space.2",
+		p = "$space.3",
 		gap = "$space.1",
-		autofocus = false,
-		on_close = function()
-			if props.open:peek() then
-				props.open:set(false)
-				props.card:set(nil)
-			end
-		end,
-		build = function(): Node
-			local known = props.card:get()
-			if type(known) ~= "table" then
-				return ui.div { w = 0, h = 0 }
-			end
-			local held = known.held
-			local n = entry_n(held)
-			local listed = #entry_commits(held)
-			-- (What the card's room shows at rest: the rest is under the
-			-- scroll, and the "+n" says how much until the list moves.)
-			local room = math.max(1, math.floor(CARD_LIST_H / CARD_ROW_H))
-			local extra = math.max(0, n - math.min(listed, room))
-			local children: { Node } = {
-				ui.text {
-					zeron.t("day_commits", { date = day_label(tonumber(known.at) or 0), n = n }),
-					w_full = true,
-					text_size = "$font.size.xs",
-					line_height = "$font.line.xs",
-					color = "$text.secondary",
-				},
-				ui.scroll {
-					w_full = true,
-					max_h = CARD_LIST_H,
-					offset = card_offset,
-					fade = { 10, 10 },
-					fade_overflow = true,
-					ui.column { w_full = true, gap = 3, table.unpack(commit_rows(held)) },
-				},
-			}
-			if extra > 0 then
-				table.insert(
-					children,
-					ui.text {
-						zeron.t("more_n", { n = extra }),
-						w_full = true,
-						text_size = "$font.size.xs",
-						line_height = "$font.line.xs",
-						color = "$text.tertiary",
-						opacity = function(): number
-							return math.max(0, 1 - card_offset:get() / 24)
-						end,
-					}
-				)
-			end
-			return ui.column {
-				w_full = true,
-				gap = "$space.1",
-				on_hover = function(inside: boolean)
-					if inside then
-						card_hovered = true
-						card_close += 1
-					else
-						card_hovered = false
-						close_soon()
-					end
-				end,
-				table.unpack(children),
-			}
-		end,
+		ui.text {
+			zeron.t("day_commits", { date = day_label(at), n = n }),
+			w_full = true,
+			text_size = "$font.size.xs",
+			line_height = "$font.line.xs",
+			color = "$text.secondary",
+		},
+		table.unpack(commit_rows(held)),
 	}
 end
 
@@ -340,6 +272,8 @@ local function grid(start: number, known: any, home: () -> boolean): Node
 			if type(first) == "table" and tonumber(first.at) then
 				first_at = tonumber(first.at) :: number
 			end
+			-- Edges open inward, so a card never runs off the window.
+			local align = if column < 6 then "start" elseif column >= COLUMNS - 6 then "end" else "center"
 			table.insert(
 				overlays,
 				ui.div {
@@ -351,18 +285,9 @@ local function grid(start: number, known: any, home: () -> boolean): Node
 					pointer_events = function(): string
 						return if home() then "auto" else "none"
 					end,
-					on_hover = function(inside: boolean)
-						if inside then
-							card_close += 1
-							card_hovered = false
-							card_offset:set(0)
-							card:set({ at = first_at, held = held, column = column, row = row })
-							card_open:set(true)
-						else
-							card_hovered = false
-							close_soon()
-						end
-					end,
+					tooltip = day_card(first_at, held),
+					tooltip_placement = { side = "top", align = align, offset = 10 },
+					tooltip_delay = 120,
 				}
 			)
 		end
@@ -566,27 +491,6 @@ local function Heatmap(props: any): Node
 	}
 end
 
--- The point a card hangs from: the middle of the day it is about, in the
--- plugin's own coordinates, moving with the card's state.
-local function CardAnchor(): Node
-	return ui.div {
-		absolute = true,
-		left = function(): number
-			local known = card:get()
-			local column = if type(known) == "table" then tonumber(known.column) or 0 else 0
-			return LABELS_W + 6 + column * (CELL + GAP)
-		end,
-		top = function(): number
-			local known = card:get()
-			local row = if type(known) == "table" then tonumber(known.row) or 0 else 0
-			return GRID_TOP + row * (CELL + GAP)
-		end,
-		w = CELL,
-		h = CELL,
-		pointer_events = "none",
-	}
-end
-
 zeron.place {
 	at = "#chat-composer",
 	after = function(): Node
@@ -642,17 +546,6 @@ zeron.place {
 			load(false)
 		end)
 
-		-- (Leaving the new chat puts a day's card away with the grid.)
-		ui.effect(function()
-			local where = route()
-			if (type(where) ~= "table" or where.name ~= "home") and card_open:peek() then
-				card_open:set(false)
-				card:set(nil)
-			end
-		end)
-
-		local anchor = CardAnchor()
-
 		return ui.div {
 			id = "heatmap-loclabs",
 			absolute = true,
@@ -660,9 +553,8 @@ zeron.place {
 			bottom = -(HEIGHT + BELOW),
 			w = WIDTH,
 			h = HEIGHT,
-			overflow = "visible",
 			-- Informational: it takes no click from the page; only its days
-			-- and its card answer the pointer, and only on a new chat.
+			-- answer the pointer, and only on a new chat.
 			pointer_events = "none",
 			opacity = function(): number
 				return if home() then 1 else 0
@@ -675,8 +567,6 @@ zeron.place {
 					load(true)
 				end,
 			},
-			anchor,
-			DayCard { card = card, open = card_open, anchor = anchor },
 		}
 	end,
 }
