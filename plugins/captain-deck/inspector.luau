@@ -1,19 +1,20 @@
 --!strict
 -- Side-panel Crew Inspector tab (`zeron.tab("captain-inspector", ...)`).
 --
--- Opens beside any Captain chat, Worker chat, or on the Captain Deck page.
--- Lets the user inspect live crew status and latest replies, send/steer
--- workers inline, spawn new workers on ANY harness/model, edit the Captain's
--- mission/rules/digest/schedule, and manage Needs You items.
+-- Built with Zeron's native `Settings` design system (`Settings.Section`,
+-- `Settings.Group`, `Settings.Row`, `Settings.Rule`) so it matches Zeron's own
+-- settings and panel screens down to the exact spacing, rounded card edges,
+-- hairlines, and control alignment.
 
 local Badge = require("@ds/badge")
 local Button = require("@ds/button")
 local EmptyState = require("@ds/empty_state")
+local FadeText = require("@ds/fade_text")
 local Icon = require("@ds/icon")
 local IconButton = require("@ds/icon_button").IconButton
 local Select = require("@ds/select")
+local Settings = require("@ds/settings")
 local Status = require("@ds/status")
-local Surface = require("@ds/surface")
 local Switch = require("@ds/switch")
 local Text = require("@ds/text")
 local TextArea = require("@ds/text_area")
@@ -27,6 +28,13 @@ local ROLES = {
 	{ value = "planner", label = "Planner" },
 	{ value = "worker", label = "General Worker" },
 }
+
+local function trim(s: string?): string
+	if type(s) ~= "string" then
+		return ""
+	end
+	return (string.gsub(s, "^%s*(.-)%s*$", "%1"))
+end
 
 return function(zeron: any, client: any): (props: { tab: any }) -> Node
 	return ui.component(function(props: { tab: any }): Node
@@ -55,13 +63,10 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 		local sp_prompt = ui.use_state("")
 		local spawning = ui.use_state(false)
 
-		-- Inline steer state (one worker expanded at a time)
+		-- Inline steer state
 		local steer_target = ui.use_state(nil :: string?)
 		local steer_text = ui.use_state("")
 		local sending = ui.use_state(false)
-
-		-- Expanded report state
-		local expanded_reply = ui.use_state(nil :: string?)
 
 		local function save_captain()
 			saving:set(true)
@@ -77,6 +82,7 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 				schedule_prompt = sched_prompt:peek(),
 			}):after(function()
 				saving:set(false)
+				show_notes:set(false)
 				zeron.toast(zeron.s("toast.saved"))
 			end, function()
 				saving:set(false)
@@ -84,13 +90,13 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 		end
 
 		local function spawn_worker()
-			local prompt = sp_prompt:peek()
-			if string.match(prompt, "^%s*$") then
+			local prompt = trim(sp_prompt:peek())
+			if prompt == "" then
 				zeron.toast("Enter a prompt for the worker")
 				return
 			end
 			spawning:set(true)
-			local custom = string.gsub(sp_custom_harness:peek(), "^%s*(.-)%s*$", "%1")
+			local custom = trim(sp_custom_harness:peek())
 			local chosen_harness = if custom ~= "" then custom else sp_harness:peek()
 			client.call("spawn_worker", {
 				captain_id = captain_id,
@@ -112,8 +118,8 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 		end
 
 		local function send_steer(chat_id: string, mode: string)
-			local txt = steer_text:peek()
-			if string.match(txt, "^%s*$") then
+			local txt = trim(steer_text:peek())
+			if txt == "" then
 				return
 			end
 			sending:set(true)
@@ -134,17 +140,19 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 		return ui.scroll {
 			w_full = true,
 			h_full = true,
+			fade = { 12, 12 },
+			fade_overflow = true,
 			ui.column {
 				w_full = true,
 				p = "$space.4",
-				gap = "$space.4",
+				gap = "$space.5",
 				ui.presence(function(): string
 					local cap = client.captain_of(captain_id)
 					if not cap then
 						return "missing"
 					end
 					local s = client.state:get()
-					return `ok:{s and s.rev or 0}:{tostring(show_notes:get())}:{tostring(show_spawn:get())}:{tostring(steer_target:get())}:{tostring(expanded_reply:get())}`
+					return `ok:{s and s.rev or 0}:{tostring(show_notes:get())}:{tostring(show_spawn:get())}:{tostring(steer_target:get())}`
 				end, function(key: string): Node
 					if key == "missing" then
 						return EmptyState {
@@ -162,7 +170,6 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 					local crew = client.crew_of(captain_id)
 					local sum = client.crew_summary(captain_id)
 
-					-- Unresolved Needs You items on this captain
 					local pending_ny: { any } = {}
 					for _, item in (cap.needs_you or {}) do
 						if not item.resolved then
@@ -172,58 +179,29 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 
 					local sections: { Node } = {}
 
-					-- 1. Captain Header Card
-					table.insert(sections, Surface {
-						kind = "raised",
-						w_full = true,
-						p = "$space.3",
-						ui.column {
-							w_full = true,
-							gap = "$space.2",
-							ui.row {
-								w_full = true,
-								gap = "$space.2",
+					-- 1. Captain Summary Group (Settings style)
+					local cap_rows: { Node } = {
+						Settings.Row {
+							lead = Status.StatusIcon { kind = client.status_kind(cap.status) :: any, size = 16 },
+							label = cap.name or "Captain",
+							badge = ui.row {
+								gap = "$space.1",
 								items = "center",
-								Status.StatusIcon { kind = client.status_kind(cap.status) :: any, size = 14 },
-								Text { cap.name or "Captain", style = "heading", truncate = true, grow = 1, min_w = 0 },
 								if cap.harness and cap.harness ~= ""
 									then Badge.Badge { cap.harness, tone = "neutral", size = "sm" }
-									else ui.div {},
-							},
-							if cap.mission and cap.mission ~= ""
-								then Text { cap.mission, style = "caption", tone = "secondary" }
-								else ui.div {},
-							ui.row {
-								w_full = true,
-								gap = "$space.2",
-								items = "center",
-								wrap = true,
+									else nil,
 								Badge.Badge {
 									`{sum.total} crew`,
-									tone = "info",
+									tone = if sum.attention > 0 then "warning" elseif sum.running > 0 then "accent" else "info",
 									size = "sm",
+									dot = sum.running > 0 or sum.attention > 0,
 									tabular = true,
 								},
-								if sum.running > 0
-									then Badge.Badge { `{sum.running} running`, tone = "accent", size = "sm", dot = true, tabular = true }
-									else ui.div {},
-								if sum.attention > 0
-									then Badge.Badge { `{sum.attention} needs you`, tone = "warning", size = "sm", dot = true, tabular = true }
-									else ui.div {},
-								Badge.Badge {
-									if cap.auto_report ~= false then zeron.s("deck.fleet.auto_report_on") else zeron.s("deck.fleet.auto_report_off"),
-									tone = if cap.auto_report ~= false then "success" else "neutral",
-									size = "sm",
-								},
-								if cap.schedule_mins and cap.schedule_mins >= 5
-									then Badge.Badge { `Every {cap.schedule_mins}m`, tone = "info", size = "sm", icon = "clock-circle" }
-									else ui.div {},
 							},
-							ui.row {
-								w_full = true,
-								gap = "$space.2",
+							description = if cap.mission and cap.mission ~= "" then cap.mission else "Long-lived orchestrator thread",
+							control = ui.row {
+								gap = "$space.1",
 								items = "center",
-								wrap = true,
 								Button {
 									size = "xs",
 									tone = "primary",
@@ -231,20 +209,14 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 										show_spawn:set(not show_spawn:peek())
 									end,
 									Icon { name = "plus", size = 12 },
-									zeron.s("deck.fleet.spawn_worker"),
+									"Spawn",
 								},
-								Button {
-									size = "xs",
-									tone = "secondary",
-									on_click = function()
-										zeron.open({ session = captain_id })
-									end,
-									Icon { name = "arrow-up-right", size = 12 },
-									zeron.s("deck.fleet.open_chat"),
-								},
-								Button {
-									size = "xs",
-									tone = "ghost",
+								IconButton {
+									icon = "pen",
+									size = "sm",
+									tone = "quiet",
+									lit = show_notes,
+									label = "Edit Rules & Schedule",
 									on_click = function()
 										name_val:set(cap.name or "Captain")
 										mission_val:set(cap.mission or "")
@@ -255,42 +227,87 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 										sched_prompt:set(cap.schedule_prompt or "")
 										show_notes:set(not show_notes:peek())
 									end,
-									Icon { name = "pen", size = 12 },
-									if show_notes:peek() then "Hide Notes" else "Rules & Digest",
+								},
+								IconButton {
+									icon = "arrow-up-right",
+									size = "sm",
+									tone = "quiet",
+									label = "Open Captain chat",
+									on_click = function()
+										zeron.open({ session = captain_id })
+									end,
 								},
 							},
 						},
+					}
+
+					if cap.digest and cap.digest ~= "" and not show_notes:peek() then
+						table.insert(cap_rows, Settings.Row {
+							icon = "document",
+							label = zeron.s("deck.fleet.digest_label"),
+							description = cap.digest,
+						})
+					end
+
+					if cap.rules and cap.rules ~= "" and not show_notes:peek() then
+						table.insert(cap_rows, Settings.Row {
+							icon = "shield-check",
+							label = zeron.s("deck.fleet.rules_label"),
+							description = cap.rules,
+						})
+					end
+
+					table.insert(sections, Settings.Section {
+						title = "Captain",
+						Settings.Group(cap_rows),
 					})
 
-					-- 2. Editable Mission / Rules / Digest / Schedule drawer
+					-- 2. Editable Rules / Digest / Schedule Group
 					if show_notes:peek() then
-						table.insert(sections, Surface {
-							kind = "sunken",
-							w_full = true,
-							p = "$space.3",
-							ui.column {
-								w_full = true,
-								gap = "$space.3",
-								TextField { value = name_val, label = "Captain Name", size = "sm" },
-								TextField { value = mission_val, label = zeron.s("inspector.mission"), placeholder = "What is this Captain responsible for?", size = "sm" },
-								TextArea { value = rules_val, label = zeron.s("inspector.rules"), placeholder = "e.g. Always run tests before reporting. Never push without asking.", rows = 3, max_rows = 6, size = "sm" },
-								TextArea { value = digest_val, label = zeron.s("inspector.digest"), placeholder = "Current progress summary or working notes…", rows = 3, max_rows = 6, size = "sm" },
-								ui.row {
-									w_full = true,
-									gap = "$space.2",
-									items = "center",
-									justify = "between",
-									Text { "Auto-report worker completions to Captain", style = "caption", tone = "secondary" },
-									Switch { value = auto_report, label = "Auto-report" },
+						table.insert(sections, Settings.Section {
+							title = "Captain Configuration",
+							Settings.Group {
+								Settings.Row {
+									label = "Captain Name",
+									stacked = true,
+									control = TextField { value = name_val, size = "sm" },
+								},
+								Settings.Row {
+									label = zeron.s("inspector.mission"),
+									stacked = true,
+									control = TextField { value = mission_val, placeholder = "What goal does this Captain own?", size = "sm" },
+								},
+								Settings.Row {
+									label = zeron.s("inspector.rules"),
+									description = "Automatically prepended to every worker spawned under this Captain.",
+									stacked = true,
+									control = TextArea { value = rules_val, placeholder = "e.g. Always run tests. Never push without asking.", rows = 3, max_rows = 6, size = "sm" },
+								},
+								Settings.Row {
+									label = zeron.s("inspector.digest"),
+									stacked = true,
+									control = TextArea { value = digest_val, placeholder = "Current progress summary or working notes…", rows = 3, max_rows = 6, size = "sm" },
+								},
+								Settings.Row {
+									label = "Auto-report to Captain",
+									description = "Send worker completion summaries back to this Captain chat.",
+									control = Switch { value = auto_report, label = "Auto-report" },
+								},
+								Settings.Row {
+									label = "Scheduled Wake (minutes, 0 = off)",
+									description = "Wake this Captain periodically when idle (minimum 5 minutes).",
+									stacked = true,
+									control = ui.column {
+										w_full = true,
+										gap = "$space.2",
+										TextField { value = sched_mins, placeholder = "0 (off) or e.g. 60", size = "sm" },
+										TextField { value = sched_prompt, placeholder = "Wake prompt, e.g. Check crew reports and update digest.", size = "sm" },
+									},
 								},
 								ui.row {
 									w_full = true,
-									gap = "$space.2",
-									TextField { value = sched_mins, label = "Wake interval (mins, 0 = off)", placeholder = "e.g. 60", size = "sm", grow = 1 },
-								},
-								TextField { value = sched_prompt, label = "Scheduled wake prompt", placeholder = "e.g. Check open crew reports and update digest.", size = "sm" },
-								ui.row {
-									w_full = true,
+									px = "$space.4",
+									py = "$space.3",
 									gap = "$space.2",
 									justify = "end",
 									Button {
@@ -313,58 +330,79 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 						})
 					end
 
-					-- 3. Quick Spawn Worker form
+					-- 3. Quick Spawn Worker Group
 					if show_spawn:peek() then
-						table.insert(sections, Surface {
-							kind = "sunken",
-							w_full = true,
-							p = "$space.3",
-							ui.column {
-								w_full = true,
-								gap = "$space.2",
-								Text { zeron.s("inspector.spawn_heading"), style = "heading" },
-								Select { value = sp_role, options = ROLES, label = "Role", size = "sm", w_full = true },
-								Select {
-									value = sp_harness,
-									options = function()
-										return client.harness_options(true)
-									end,
-									label = "Harness (any installed or ACP harness)",
-									size = "sm",
-									w_full = true,
-									on_change = function()
-										sp_model:set("")
-									end,
+						table.insert(sections, Settings.Section {
+							title = zeron.s("inspector.spawn_heading"),
+							Settings.Group {
+								Settings.Row {
+									label = "Role",
+									control = Select { value = sp_role, options = ROLES, size = "sm" },
 								},
-								TextField {
-									value = sp_custom_harness,
-									label = "Custom harness id (optional override)",
-									placeholder = "e.g. acp.gemini, hermes, opencode, pi",
-									size = "sm",
+								Settings.Row {
+									label = "Harness",
+									description = "Choose any harness in Zeron, or enter a custom ACP id below.",
+									stacked = true,
+									control = ui.column {
+										w_full = true,
+										gap = "$space.2",
+										Select {
+											value = sp_harness,
+											options = function()
+												return client.harness_options(true)
+											end,
+											size = "sm",
+											w_full = true,
+											on_change = function()
+												sp_model:set("")
+											end,
+										},
+										TextField {
+											value = sp_custom_harness,
+											placeholder = "Optional custom harness id (e.g. acp.gemini, hermes, pi)",
+											size = "sm",
+										},
+									},
 								},
-								Select {
-									value = sp_model,
-									options = function()
-										local custom = string.gsub(sp_custom_harness:get(), "^%s*(.-)%s*$", "%1")
-										return client.models_for(if custom ~= "" then custom else sp_harness:get())
-									end,
+								Settings.Row {
 									label = "Model",
-									size = "sm",
-									w_full = true,
+									stacked = true,
+									control = Select {
+										value = sp_model,
+										options = function()
+											local custom = trim(sp_custom_harness:get())
+											return client.models_for(if custom ~= "" then custom else sp_harness:get())
+										end,
+										size = "sm",
+										w_full = true,
+									},
 								},
-								Select {
-									value = sp_project,
-									options = function()
-										return client.project_options()
-									end,
+								Settings.Row {
 									label = "Project",
-									size = "sm",
-									w_full = true,
+									stacked = true,
+									control = Select {
+										value = sp_project,
+										options = function()
+											return client.project_options()
+										end,
+										size = "sm",
+										w_full = true,
+									},
 								},
-								TextField { value = sp_task, label = "Task label", placeholder = "Short title shown in Crew tree", size = "sm" },
-								TextArea { value = sp_prompt, label = "Prompt", placeholder = "Describe what this worker should build, review, or research…", rows = 3, max_rows = 8, size = "sm" },
+								Settings.Row {
+									label = "Task & Prompt",
+									stacked = true,
+									control = ui.column {
+										w_full = true,
+										gap = "$space.2",
+										TextField { value = sp_task, placeholder = "Short task title shown in Crew tree", size = "sm" },
+										TextArea { value = sp_prompt, placeholder = "Full instructions for this worker…", rows = 3, max_rows = 8, size = "sm" },
+									},
+								},
 								ui.row {
 									w_full = true,
+									px = "$space.4",
+									py = "$space.3",
 									gap = "$space.2",
 									justify = "end",
 									Button {
@@ -388,102 +426,101 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 						})
 					end
 
-					-- 4. Needs You escalations for this Captain
+					-- 4. Needs You escalations
 					if #pending_ny > 0 then
-						local ny_rows: { Node } = {
-							Text { zeron.s("deck.attention.title"), style = "label", tone = "accent" },
-						}
+						local ny_rows: { Node } = {}
 						for _, item in pending_ny do
-							table.insert(ny_rows, Surface {
-								kind = "raised",
-								w_full = true,
-								p = "$space.2",
-								ui.column {
-									w_full = true,
+							table.insert(ny_rows, Settings.Row {
+								icon = "bell",
+								label = item.title or "Needs decision",
+								description = item.detail,
+								control = ui.row {
 									gap = "$space.1",
-									Text { item.title or "Needs decision", style = "body", weight = "$font.weight.medium" },
-									if item.detail and item.detail ~= ""
-										then Text { item.detail, style = "caption", tone = "secondary" }
-										else ui.div {},
-									ui.row {
-										gap = "$space.2",
-										Button {
-											size = "xs",
-											tone = "secondary",
-											on_click = function()
-												zeron.open({ session = item.worker_chat or captain_id })
-											end,
-											zeron.s("deck.attention.open_chat"),
-										},
-										Button {
-											size = "xs",
-											tone = "ghost",
-											on_click = function()
-												client.call("resolve_attention", { captain_id = captain_id, item_id = item.id })
-											end,
-											zeron.s("deck.attention.resolve"),
-										},
+									items = "center",
+									Button {
+										size = "xs",
+										tone = "secondary",
+										on_click = function()
+											zeron.open({ session = item.worker_chat or captain_id })
+										end,
+										zeron.s("deck.attention.open_chat"),
+									},
+									Button {
+										size = "xs",
+										tone = "ghost",
+										on_click = function()
+											client.call("resolve_attention", { captain_id = captain_id, item_id = item.id })
+										end,
+										zeron.s("deck.attention.resolve"),
 									},
 								},
 							})
 						end
-						table.insert(sections, ui.column { w_full = true, gap = "$space.2", table.unpack(ny_rows) })
-					end
-
-					-- 5. Live Digest preview (when notes drawer is closed)
-					if not show_notes:peek() and cap.digest and cap.digest ~= "" then
-						table.insert(sections, Surface {
-							kind = "sunken",
-							w_full = true,
-							p = "$space.3",
-							ui.column {
-								w_full = true,
-								gap = "$space.1",
-								Text { zeron.s("deck.fleet.digest_label"), style = "label", tone = "tertiary" },
-								Text { cap.digest, style = "caption", tone = "secondary" },
-							},
+						table.insert(sections, Settings.Section {
+							title = zeron.s("deck.attention.title"),
+							Settings.Group(ny_rows),
 						})
 					end
 
-					-- 6. Crew List
-					table.insert(sections, Text { zeron.s("inspector.crew_heading", { n = #crew }), style = "label", tone = "tertiary" })
-
+					-- 5. Crew Workers Section
 					if #crew == 0 then
-						table.insert(sections, EmptyState {
-							size = "sm",
-							icon = "bot",
-							title = "No crew yet",
-							body = zeron.s("deck.fleet.no_crew"),
-							action = {
-								label = zeron.s("deck.fleet.spawn_worker"),
-								icon = "plus",
-								on_click = function()
-									show_spawn:set(true)
-								end,
+						table.insert(sections, Settings.Section {
+							title = zeron.s("inspector.crew_heading", { n = 0 }),
+							Settings.Group {
+								ui.column {
+									w_full = true,
+									py = "$space.5",
+									px = "$space.4",
+									EmptyState {
+										size = "sm",
+										icon = "bot",
+										title = "No crew assigned yet",
+										body = zeron.s("deck.fleet.no_crew"),
+										action = {
+											label = zeron.s("deck.fleet.spawn_worker"),
+											icon = "plus",
+											on_click = function()
+												show_spawn:set(true)
+											end,
+										},
+									},
+								},
 							},
 						})
 					else
+						local crew_rows: { Node } = {}
 						for _, w in crew do
 							local is_steering = steer_target:peek() == w.chat_id
-							local is_expanded = expanded_reply:peek() == w.chat_id
-							local reply = w.last_reply or ""
-							local preview = if #reply > 160 and not is_expanded then string.sub(reply, 1, 159) .. "…" else reply
+							local reply = trim(w.last_reply or "")
+							local preview = if w.last_error and w.last_error ~= ""
+								then w.last_error
+								elseif #reply > 220
+								then string.sub(reply, 1, 219) .. "…"
+								else reply
 
-							local card_children: { Node } = {
+							table.insert(crew_rows, ui.column {
+								w_full = true,
+								px = "$space.4",
+								py = "$space.3",
+								gap = "$space.2",
 								ui.row {
 									w_full = true,
 									gap = "$space.2",
 									items = "center",
-									Status.StatusIcon { kind = client.status_kind(w.status) :: any, size = 13 },
-									Badge.Badge { w.role or "worker", tone = client.status_tone(w.status), size = "sm" },
-									if w.harness and w.harness ~= ""
-										then Badge.Badge { w.harness, tone = "neutral", size = "sm" }
-										else ui.div {},
-									ui.div { grow = 1 },
+									Status.StatusIcon { kind = client.status_kind(w.status) :: any, size = 14 },
+									FadeText {
+										w.task or client.session_title(w.chat_id),
+										grow = 1,
+										min_w = 0,
+										text_size = "$font.size.md",
+										weight = "$font.weight.medium",
+										color = "$text.primary",
+									},
 									IconButton {
 										icon = "chat-round-line",
 										size = "sm",
 										tone = "quiet",
+										lit = is_steering,
 										label = "Message or steer worker",
 										on_click = function()
 											if steer_target:peek() == w.chat_id then
@@ -515,55 +552,46 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 										end,
 									},
 								},
-								Text { w.task or client.session_title(w.chat_id), style = "body", weight = "$font.weight.medium" },
-							}
-
-							if w.model and w.model ~= "" then
-								table.insert(card_children, Text { `Model: {w.model}`, style = "caption", tone = "tertiary" })
-							end
-
-							if w.next_stage then
-								table.insert(card_children, Badge.Badge {
-									`Then -> {w.next_stage.role or "reviewer"} ({w.next_stage.harness or "auto"})`,
-									tone = "info",
-									size = "sm",
-									icon = "map-arrow-right",
-								})
-							end
-
-							if w.last_error and w.last_error ~= "" then
-								table.insert(card_children, Text { w.last_error, style = "caption", tone = "danger" })
-							elseif preview ~= "" then
-								table.insert(card_children, ui.column {
+								ui.row {
 									w_full = true,
 									gap = "$space.1",
-									Text { preview, style = "caption", tone = "secondary" },
-									if #reply > 160
-										then Button {
-											size = "xs",
-											tone = "ghost",
-											on_click = function()
-												expanded_reply:set(if is_expanded then nil else w.chat_id)
-											end,
-											if is_expanded then "Collapse report" else "Show full report",
+									items = "center",
+									flex_wrap = true,
+									Badge.Badge { w.role or "worker", tone = client.status_tone(w.status), size = "sm" },
+									if w.harness and w.harness ~= ""
+										then Badge.Badge { w.harness, tone = "neutral", size = "sm" }
+										else nil,
+									if w.model and w.model ~= ""
+										then Badge.Badge { w.model, tone = "neutral", size = "sm", look = "outline" }
+										else nil,
+									if w.next_stage
+										then Badge.Badge {
+											`Then -> {w.next_stage.role or "reviewer"} ({w.next_stage.harness or "auto"})`,
+											tone = "info",
+											size = "sm",
+											icon = "map-arrow-right",
 										}
-										else ui.div {},
-								})
-							end
-
-							if is_steering then
-								table.insert(card_children, ui.column {
-									w_full = true,
-									gap = "$space.2",
-									pt = "$space.1",
-									TextField {
-										value = steer_text,
-										placeholder = zeron.s("inspector.steer_placeholder"),
-										size = "sm",
-									},
-									ui.row {
+										else nil,
+								},
+								if preview ~= ""
+									then Text {
+										preview,
+										style = "caption",
+										tone = if w.last_error and w.last_error ~= "" then "danger" else "secondary",
+									}
+									else nil,
+								if is_steering
+									then ui.row {
+										w_full = true,
 										gap = "$space.2",
-										justify = "end",
+										items = "center",
+										pt = "$space.1",
+										TextField {
+											value = steer_text,
+											placeholder = zeron.s("inspector.steer_placeholder"),
+											size = "sm",
+											grow = 1,
+										},
 										Button {
 											size = "xs",
 											tone = "secondary",
@@ -580,23 +608,21 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 											on_click = function()
 												send_steer(w.chat_id, "steer")
 											end,
-											"Steer Now",
+											"Steer",
 										},
-									},
-								})
-							end
-
-							table.insert(sections, Surface {
-								kind = "raised",
-								w_full = true,
-								p = "$space.3",
-								ui.column { w_full = true, gap = "$space.2", table.unpack(card_children) },
+									}
+									else nil,
 							})
 						end
+
+						table.insert(sections, Settings.Section {
+							title = zeron.s("inspector.crew_heading", { n = #crew }),
+							Settings.Group(crew_rows),
+						})
 					end
 
-					return ui.column { w_full = true, gap = "$space.3", table.unpack(sections) }
-				end),
+					return ui.column { w_full = true, gap = "$space.5", table.unpack(sections) }
+				end, { w_full = true }),
 			},
 		}
 	end)

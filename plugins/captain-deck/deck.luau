@@ -1,13 +1,10 @@
 --!strict
 -- Captain Deck: dedicated sidebar page (`zeron.page`).
 --
--- Full harness-agnostic orchestration control center:
--- - Live summary stats + Attention Digest ("Needs You")
--- - Fleet view: Captains & visual Crew Trees with inline steer & inspector
--- - Workflows view: Build -> Cross-Harness Review, Fan-Out Swarm, Compare
--- - Chats view: 1-click Promote to Captain or Attach as Worker
--- - Activity view: live orchestration timeline
--- - Slide-over Sheets for creating Captains and spawning Workers on ANY harness
+-- Designed directly around Zeron's native `Settings` design system
+-- (`Settings.Page`, `Settings.Section`, `Settings.Group`, `Settings.Row`,
+-- `Settings.Rule`, `Settings.inset`) so its typography, card borders,
+-- hairlines, and controls look identical to Zeron's built-in Settings pages.
 
 local Badge = require("@ds/badge")
 local Button = require("@ds/button")
@@ -19,15 +16,17 @@ local IconButton = require("@ds/icon_button").IconButton
 local SearchField = require("@ds/search_field")
 local Segmented = require("@ds/segmented")
 local Select = require("@ds/select")
-local Stat = require("@ds/stat")
+local Settings = require("@ds/settings")
 local Status = require("@ds/status")
-local Surface = require("@ds/surface")
 local Switch = require("@ds/switch")
 local Tabs = require("@ds/tabs")
 local Text = require("@ds/text")
 local TextArea = require("@ds/text_area")
 local TextField = require("@ds/text_field")
 local banner = require("@ds/banner")
+local control = require("@ds/control")
+
+local NARROW = 640
 
 local ROLES = {
 	{ value = "builder", label = "Builder" },
@@ -70,6 +69,7 @@ return function(zeron: any, client: any): (props: { page: any, panel: any? }) ->
 	return ui.component(function(props: { page: any, panel: any? }): Node
 		local panel = props.panel
 
+		local width = ui.use_state(0)
 		local active_tab = ui.use_state("fleet")
 		local query = ui.use_state("")
 
@@ -342,17 +342,32 @@ return function(zeron: any, client: any): (props: { page: any, panel: any? }) ->
 			return false
 		end
 
-		-- ── Fleet Tab ──────────────────────────────────────────────────────
+		-- Quiet search bar that sits at the top of a Settings.Group card,
+		-- matching `Settings.Catalog` and `github/board.luau`.
+		local function card_search_bar(placeholder: string): Node
+			return ui.div {
+				w_full = true,
+				shrink = 0,
+				p = "$space.1",
+				theme = { radius = { md = control.nest("$radius.xl", 1, "$space.1") } },
+				SearchField {
+					value = query,
+					placeholder = placeholder,
+					name = placeholder,
+					size = "sm",
+					quiet = true,
+					w_full = true,
+				},
+			}
+		end
+
+		-- ── Fleet Tab (Settings.Section + Settings.Group per Captain) ──────
 		local function build_fleet(): Node
 			return ui.column {
 				w_full = true,
-				gap = "$space.3",
-				SearchField {
-					value = query,
-					placeholder = zeron.s("deck.search_placeholder"),
-					name = "Filter captains and crew",
-					size = "sm",
-					w_full = true,
+				gap = "$space.5",
+				Settings.Group {
+					card_search_bar(zeron.s("deck.search_placeholder")),
 				},
 				ui.presence(function(): string
 					local s = client.state:get()
@@ -368,7 +383,7 @@ return function(zeron: any, client: any): (props: { page: any, panel: any? }) ->
 						return (a.updated_at or 0) > (b.updated_at or 0)
 					end)
 
-					local cards: { Node } = {}
+					local sections: { Node } = {}
 					for _, cap in caps do
 						local crew = client.crew_of(cap.chat_id)
 						if not matches_query(cap, crew, q) then
@@ -376,447 +391,460 @@ return function(zeron: any, client: any): (props: { page: any, panel: any? }) ->
 						end
 						local sum = client.crew_summary(cap.chat_id)
 
-						-- Crew Tree rows under this Captain
-						local crew_nodes: { Node } = {}
+						local group_rows: { Node } = {}
+
+						-- Top row of the Captain's Settings.Group card: Captain overview & controls
+						local cap_badges: { Node } = {
+							Badge.Badge { "Captain", tone = "accent", size = "sm" },
+						}
+						if cap.harness and cap.harness ~= "" then
+							table.insert(cap_badges, Badge.Badge { cap.harness, tone = "neutral", size = "sm" })
+						end
+						if sum.running > 0 then
+							table.insert(cap_badges, Badge.Badge { `{sum.running} running`, tone = "accent", size = "sm", dot = true, tabular = true })
+						end
+						if sum.attention > 0 then
+							table.insert(cap_badges, Badge.Badge { `{sum.attention} needs you`, tone = "warning", size = "sm", dot = true, tabular = true })
+						end
+						if cap.schedule_mins and cap.schedule_mins >= 5 then
+							table.insert(cap_badges, Badge.Badge { `Every {cap.schedule_mins}m`, tone = "info", size = "sm", icon = "clock-circle" })
+						end
+
+						local desc_parts: { string } = {}
+						if cap.mission and cap.mission ~= "" then
+							table.insert(desc_parts, cap.mission)
+						end
+						if cap.digest and cap.digest ~= "" then
+							table.insert(desc_parts, `Digest: {cap.digest}`)
+						end
+						local cap_desc = if #desc_parts > 0
+							then table.concat(desc_parts, " · ")
+							else `{sum.total} crew assigned · {if cap.auto_report ~= false then "Auto-report on" else "Manual report"}`
+
+						table.insert(group_rows, Settings.Row {
+							lead = Status.StatusIcon { kind = client.status_kind(cap.status) :: any, size = 16 },
+							label = cap.name or client.session_title(cap.chat_id),
+							badge = ui.row { gap = "$space.1", items = "center", flex_wrap = true, table.unpack(cap_badges) },
+							description = cap_desc,
+							control = ui.row {
+								gap = "$space.2",
+								items = "center",
+								Button {
+									size = "xs",
+									tone = "primary",
+									on_click = function()
+										open_spawn_for(cap)
+									end,
+									Icon { name = "plus", size = 12 },
+									zeron.s("deck.fleet.spawn_worker"),
+								},
+								Button {
+									size = "xs",
+									tone = "secondary",
+									on_click = function()
+										client.open_inspector(panel, cap.chat_id)
+									end,
+									Icon { name = "split-columns", size = 12 },
+									zeron.s("deck.fleet.inspector"),
+								},
+								IconButton {
+									icon = "arrow-up-right",
+									size = "sm",
+									tone = "quiet",
+									label = "Open Captain chat",
+									on_click = function()
+										zeron.open({ session = cap.chat_id })
+									end,
+								},
+								IconButton {
+									icon = "trash-bin-minimalistic",
+									size = "sm",
+									tone = "danger",
+									label = "Demote Captain (keeps chats)",
+									on_click = function()
+										client.call("remove_captain", { chat_id = cap.chat_id }):after(function()
+											zeron.toast(`Demoted {cap.name}`)
+										end, function() end)
+									end,
+								},
+							},
+						})
+
+						-- Crew member rows inside the same Settings.Group card, divided by hairlines
 						if #crew == 0 then
-							table.insert(crew_nodes, Text { zeron.s("deck.fleet.no_crew"), style = "caption", tone = "tertiary" })
+							table.insert(group_rows, Settings.Row {
+								icon = "bot",
+								label = "No crew workers yet",
+								description = zeron.s("deck.fleet.no_crew"),
+								control = Button {
+									size = "xs",
+									tone = "secondary",
+									on_click = function()
+										open_spawn_for(cap)
+									end,
+									Icon { name = "plus", size = 12 },
+									"Add Worker",
+								},
+							})
 						else
 							for _, w in crew do
 								local is_steer = steer_chat:peek() == w.chat_id
 								local snippet = if w.last_error and w.last_error ~= ""
 									then w.last_error
 									elseif w.last_reply and w.last_reply ~= ""
-									then (string.gsub(string.sub(w.last_reply, 1, 140), "[\r\n]+", " "))
+									then (string.gsub(string.sub(w.last_reply, 1, 180), "[\r\n]+", " "))
 									else ""
 
-								local row_bits: { Node } = {
-									ui.row {
-										w_full = true,
-										gap = "$space.2",
-										items = "center",
-										Status.StatusIcon { kind = client.status_kind(w.status) :: any, size = 13 },
-										Badge.Badge { w.role or "worker", tone = client.status_tone(w.status), size = "sm" },
-										if w.harness and w.harness ~= ""
-											then Badge.Badge { w.harness, tone = "neutral", size = "sm" }
-											else ui.div {},
-										FadeText {
-											w.task or client.session_title(w.chat_id),
-											grow = 1,
-											min_w = 0,
-											text_size = "$font.size.sm",
-											weight = "$font.weight.medium",
-											color = "$text.primary",
+								local w_badges: { Node } = {
+									Badge.Badge { w.role or "worker", tone = client.status_tone(w.status), size = "sm" },
+								}
+								if w.harness and w.harness ~= "" then
+									table.insert(w_badges, Badge.Badge { w.harness, tone = "neutral", size = "sm" })
+								end
+								if w.model and w.model ~= "" then
+									table.insert(w_badges, Badge.Badge { w.model, tone = "neutral", size = "sm", look = "outline" })
+								end
+								if w.next_stage then
+									table.insert(w_badges, Badge.Badge {
+										`Then -> {w.next_stage.role or "reviewer"} ({w.next_stage.harness or "auto"})`,
+										tone = "info",
+										size = "sm",
+										icon = "map-arrow-right",
+									})
+								end
+
+								table.insert(group_rows, ui.column {
+									w_full = true,
+									Settings.Row {
+										lead = ui.row {
+											w = 28,
+											h = 28,
+											shrink = 0,
+											items = "center",
+											justify = "center",
+											Status.StatusIcon { kind = client.status_kind(w.status) :: any, size = 14 },
 										},
-										Text { format_age(w.updated_at), style = "label", tone = "tertiary" },
-										IconButton {
-											icon = "chat-round-line",
-											size = "sm",
-											tone = "quiet",
-											label = "Message or steer worker",
-											on_click = function()
-												if steer_chat:peek() == w.chat_id then
-													steer_chat:set(nil)
-												else
-													steer_chat:set(w.chat_id)
-													steer_text:set("")
-												end
-											end,
-										},
-										IconButton {
-											icon = "arrow-up-right",
-											size = "sm",
-											tone = "quiet",
-											label = "Open worker chat",
-											on_click = function()
-												zeron.open({ session = w.chat_id })
-											end,
-										},
-										IconButton {
-											icon = "close",
-											size = "sm",
-											tone = "danger",
-											label = "Detach worker",
-											on_click = function()
-												client.call("detach_worker", { worker_chat = w.chat_id }):after(function()
-													zeron.toast(zeron.s("toast.worker_detached"))
-												end, function() end)
-											end,
+										label = w.task or client.session_title(w.chat_id),
+										badge = ui.row { gap = "$space.1", items = "center", flex_wrap = true, table.unpack(w_badges) },
+										description = if snippet ~= "" then snippet else `Updated {format_age(w.updated_at)}`,
+										control = ui.row {
+											gap = "$space.1",
+											items = "center",
+											Button {
+												size = "xs",
+												tone = if is_steer then "accent" else "ghost",
+												on_click = function()
+													if steer_chat:peek() == w.chat_id then
+														steer_chat:set(nil)
+													else
+														steer_chat:set(w.chat_id)
+														steer_text:set("")
+													end
+												end,
+												Icon { name = "chat-round-line", size = 12 },
+												zeron.s("deck.fleet.steer"),
+											},
+											IconButton {
+												icon = "arrow-up-right",
+												size = "sm",
+												tone = "quiet",
+												label = "Open worker chat",
+												on_click = function()
+													zeron.open({ session = w.chat_id })
+												end,
+											},
+											IconButton {
+												icon = "close",
+												size = "sm",
+												tone = "danger",
+												label = "Detach worker",
+												on_click = function()
+													client.call("detach_worker", { worker_chat = w.chat_id }):after(function()
+														zeron.toast(zeron.s("toast.worker_detached"))
+													end, function() end)
+												end,
+											},
 										},
 									},
-								}
-
-								if w.next_stage then
-									table.insert(row_bits, ui.row {
-										gap = "$space.1",
-										items = "center",
-										Badge.Badge {
-											`Handoff -> {w.next_stage.role or "reviewer"} ({w.next_stage.harness or "auto"})`,
-											tone = "info",
-											size = "sm",
-											icon = "map-arrow-right",
-										},
-									})
-								end
-
-								if snippet ~= "" then
-									table.insert(row_bits, Text {
-										snippet,
-										style = "caption",
-										tone = if w.last_error and w.last_error ~= "" then "danger" else "tertiary",
-										truncate = true,
-									})
-								end
-
-								if is_steer then
-									table.insert(row_bits, ui.row {
-										w_full = true,
-										gap = "$space.2",
-										items = "center",
-										pt = "$space.1",
-										TextField {
-											value = steer_text,
-											placeholder = zeron.s("inspector.steer_placeholder"),
-											size = "sm",
-											grow = 1,
-										},
-										Button {
-											size = "xs",
-											tone = "secondary",
-											busy = steering,
-											on_click = function()
-												send_inline_steer(w.chat_id, "queue")
-											end,
-											"Queue",
-										},
-										Button {
-											size = "xs",
-											tone = "accent",
-											busy = steering,
-											on_click = function()
-												send_inline_steer(w.chat_id, "steer")
-											end,
-											"Steer",
-										},
-									})
-								end
-
-								table.insert(crew_nodes, Surface {
-									kind = "sunken",
-									w_full = true,
-									px = "$space.3",
-									py = "$space.2",
-									ui.column { w_full = true, gap = "$space.1", table.unpack(row_bits) },
+									if is_steer
+										then ui.row {
+											w_full = true,
+											px = "$space.4",
+											pb = "$space.3",
+											gap = "$space.2",
+											items = "center",
+											TextField {
+												value = steer_text,
+												placeholder = zeron.s("inspector.steer_placeholder"),
+												size = "sm",
+												grow = 1,
+											},
+											Button {
+												size = "xs",
+												tone = "secondary",
+												busy = steering,
+												on_click = function()
+													send_inline_steer(w.chat_id, "queue")
+												end,
+												"Queue",
+											},
+											Button {
+												size = "xs",
+												tone = "accent",
+												busy = steering,
+												on_click = function()
+													send_inline_steer(w.chat_id, "steer")
+												end,
+												"Steer Now",
+											},
+										}
+										else nil,
 								})
 							end
 						end
 
-						local card_content: { Node } = {
-							-- Captain header row
-							ui.row {
+						table.insert(sections, Settings.Group(group_rows))
+					end
+
+					if #sections == 0 then
+						return Settings.Group {
+							ui.column {
 								w_full = true,
-								gap = "$space.2",
-								items = "center",
-								Status.StatusIcon { kind = client.status_kind(cap.status) :: any, size = 15 },
-								Icon { name = "star-bold", size = 14, color = "$accent" },
-								ui.row {
-									grow = 1,
-									min_w = 0,
-									cursor = "pointer",
-									on_click = function()
-										zeron.open({ session = cap.chat_id })
-									end,
-									FadeText {
-										cap.name or client.session_title(cap.chat_id),
-										grow = 1,
-										min_w = 0,
-										text_size = "$font.size.lg",
-										weight = "$font.weight.semibold",
-										color = "$text.primary",
+								py = "$space.6",
+								px = "$space.4",
+								EmptyState {
+									icon = "users-group-rounded",
+									title = if q ~= "" then `No match for "{q}"` else zeron.s("deck.fleet.empty_title"),
+									body = zeron.s("deck.fleet.empty_body"),
+									action = {
+										label = zeron.s("deck.new_captain"),
+										icon = "plus",
+										on_click = function()
+											new_cap_open:set(true)
+										end,
+									},
+									secondary = {
+										label = zeron.s("deck.launch_workflow"),
+										icon = "action-play",
+										on_click = function()
+											active_tab:set("workflows")
+										end,
 									},
 								},
-								if cap.harness and cap.harness ~= ""
-									then Badge.Badge { cap.harness, tone = "neutral", size = "sm" }
-									else ui.div {},
-								Badge.Badge {
-									if cap.auto_report ~= false then zeron.s("deck.fleet.auto_report_on") else zeron.s("deck.fleet.auto_report_off"),
-									tone = if cap.auto_report ~= false then "success" else "neutral",
-									size = "sm",
-								},
-								if cap.schedule_mins and cap.schedule_mins >= 5
-									then Badge.Badge { `Every {cap.schedule_mins}m`, tone = "info", size = "sm", icon = "clock-circle" }
-									else ui.div {},
-								if sum.attention > 0
-									then Badge.Badge { `{sum.attention} needs you`, tone = "warning", size = "sm", dot = true, tabular = true }
-									else ui.div {},
-							},
-						}
-
-						if cap.mission and cap.mission ~= "" then
-							table.insert(card_content, Text { cap.mission, style = "caption", tone = "secondary" })
-						end
-
-						if cap.digest and cap.digest ~= "" then
-							table.insert(card_content, ui.row {
-								w_full = true,
-								gap = "$space.2",
-								items = "center",
-								Badge.Badge { zeron.s("deck.fleet.digest_label"), tone = "info", size = "sm" },
-								Text { cap.digest, style = "caption", tone = "secondary", truncate = true, grow = 1, min_w = 0 },
-							})
-						end
-
-						-- Action toolbar
-						table.insert(card_content, ui.row {
-							w_full = true,
-							gap = "$space.2",
-							items = "center",
-							wrap = true,
-							Button {
-								size = "xs",
-								tone = "primary",
-								on_click = function()
-									open_spawn_for(cap)
-								end,
-								Icon { name = "plus", size = 12 },
-								zeron.s("deck.fleet.spawn_worker"),
-							},
-							Button {
-								size = "xs",
-								tone = "secondary",
-								on_click = function()
-									client.open_inspector(panel, cap.chat_id)
-								end,
-								Icon { name = "split-columns", size = 12 },
-								zeron.s("deck.fleet.inspector"),
-							},
-							Button {
-								size = "xs",
-								tone = "ghost",
-								on_click = function()
-									zeron.open({ session = cap.chat_id })
-								end,
-								Icon { name = "arrow-up-right", size = 12 },
-								zeron.s("deck.fleet.open_chat"),
-							},
-							ui.div { grow = 1 },
-							IconButton {
-								icon = "trash-bin-minimalistic",
-								size = "sm",
-								tone = "danger",
-								label = "Demote Captain (keeps underlying chats)",
-								on_click = function()
-									client.call("remove_captain", { chat_id = cap.chat_id }):after(function()
-										zeron.toast(`Demoted {cap.name}`)
-									end, function() end)
-								end,
-							},
-						})
-
-						-- Indented visual Crew Tree
-						table.insert(card_content, ui.column {
-							w_full = true,
-							pl = "$space.3",
-							ml = "$space.2",
-							border_l = 2,
-							border_color = "$border.strong",
-							gap = "$space.2",
-							table.unpack(crew_nodes),
-						})
-
-						table.insert(cards, Surface {
-							kind = "raised",
-							w_full = true,
-							p = "$space.4",
-							ui.column { w_full = true, gap = "$space.3", table.unpack(card_content) },
-						})
-					end
-
-					if #cards == 0 then
-						return EmptyState {
-							icon = "users-group-rounded",
-							title = zeron.s("deck.fleet.empty_title"),
-							body = zeron.s("deck.fleet.empty_body"),
-							action = {
-								label = zeron.s("deck.new_captain"),
-								icon = "plus",
-								on_click = function()
-									new_cap_open:set(true)
-								end,
-							},
-							secondary = {
-								label = zeron.s("deck.launch_workflow"),
-								icon = "action-play",
-								on_click = function()
-									active_tab:set("workflows")
-								end,
 							},
 						}
 					end
 
-					return ui.column { w_full = true, gap = "$space.3", table.unpack(cards) }
-				end),
+					return ui.column { w_full = true, gap = "$space.5", table.unpack(sections) }
+				end, { w_full = true }),
 			}
 		end
 
-		-- ── Workflows Tab ──────────────────────────────────────────────────
+		-- ── Workflows Tab (Settings.Section + Settings.Group rows) ─────────
 		local function build_workflows(): Node
-			return Surface {
-				kind = "raised",
-				w_full = true,
-				p = "$space.4",
-				ui.column {
-					w_full = true,
-					gap = "$space.3",
-					Text { zeron.s("deck.workflows.heading"), style = "heading" },
-					Text { zeron.s("deck.workflows.intro"), style = "caption", tone = "secondary" },
-					Segmented {
-						value = wf_preset,
-						options = WORKFLOW_PRESETS,
-						fill = true,
-						label = "Workflow preset",
-					},
-					ui.presence(function(): string
-						return wf_preset:get()
-					end, function(preset: string): Node
-						local desc = if preset == "build_review"
-							then zeron.s("deck.workflows.preset_build_review_desc")
-							elseif preset == "fanout"
-							then zeron.s("deck.workflows.preset_fanout_desc")
-							else zeron.s("deck.workflows.preset_compare_desc")
-						return Text { desc, style = "caption", tone = "accent" }
-					end),
-					ui.row {
-						w_full = true,
-						gap = "$space.3",
-						ui.column {
-							grow = 1,
-							min_w = 0,
-							Select {
-								value = wf_captain_id,
-								options = function()
-									return captain_picker_options(true)
-								end,
-								label = "Captain",
-								size = "sm",
-								w_full = true,
-							},
-						},
-						ui.column {
-							grow = 1,
-							min_w = 0,
-							Select {
-								value = wf_project,
-								options = function()
-									return client.project_options()
-								end,
-								label = "Project",
-								size = "sm",
-								w_full = true,
-							},
+			return Settings.Section {
+				title = zeron.s("deck.workflows.heading"),
+				description = zeron.s("deck.workflows.intro"),
+				Settings.Group {
+					Settings.Row {
+						icon = "magic-stick",
+						label = "Workflow Preset",
+						description = function(): string
+							local p = wf_preset:get()
+							return if p == "build_review"
+								then zeron.s("deck.workflows.preset_build_review_desc")
+								elseif p == "fanout"
+								then zeron.s("deck.workflows.preset_fanout_desc")
+								else zeron.s("deck.workflows.preset_compare_desc")
+						end,
+						stacked = true,
+						control = Segmented {
+							value = wf_preset,
+							options = WORKFLOW_PRESETS,
+							fill = true,
+							label = "Workflow preset",
 						},
 					},
-					ui.row {
-						w_full = true,
-						gap = "$space.3",
-						ui.column {
-							grow = 1,
-							min_w = 0,
+					Settings.Row {
+						icon = "star",
+						label = "Coordinator Captain",
+						description = "Pick an existing Captain or automatically start a new Captain thread.",
+						control = Select {
+							value = wf_captain_id,
+							options = function()
+								return captain_picker_options(true)
+							end,
+							size = "sm",
+						},
+					},
+					Settings.Row {
+						icon = "folder",
+						label = "Target Project",
+						description = "Workspace folder where spawned workers run.",
+						control = Select {
+							value = wf_project,
+							options = function()
+								return client.project_options()
+							end,
+							size = "sm",
+						},
+					},
+					Settings.Row {
+						icon = "bot",
+						label = "Primary / Builder Harness & Model",
+						description = "The agent harness that executes the primary build or fan-out tasks.",
+						stacked = true,
+						control = ui.column {
+							w_full = true,
 							gap = "$space.2",
-							Select {
-								value = wf_primary_harness,
-								options = function()
-									return client.harness_options(true)
-								end,
-								label = "Primary / Builder Harness",
-								size = "sm",
+							ui.row {
 								w_full = true,
-								on_change = function()
-									wf_primary_model:set("")
-								end,
+								gap = "$space.2",
+								flex_wrap = true,
+								ui.column {
+									grow = 1,
+									min_w = 180,
+									Select {
+										value = wf_primary_harness,
+										options = function()
+											return client.harness_options(true)
+										end,
+										size = "sm",
+										w_full = true,
+										on_change = function()
+											wf_primary_model:set("")
+										end,
+									},
+								},
+								ui.column {
+									grow = 1,
+									min_w = 180,
+									Select {
+										value = wf_primary_model,
+										options = function()
+											local c = trim(wf_primary_custom:get())
+											return client.models_for(if c ~= "" then c else wf_primary_harness:get())
+										end,
+										size = "sm",
+										w_full = true,
+									},
+								},
 							},
 							TextField {
 								value = wf_primary_custom,
-								placeholder = "Or custom harness id (e.g. acp.gemini)",
+								placeholder = "Optional custom harness id override (e.g. acp.gemini, hermes, pi)",
 								size = "sm",
-							},
-							Select {
-								value = wf_primary_model,
-								options = function()
-									local c = trim(wf_primary_custom:get())
-									return client.models_for(if c ~= "" then c else wf_primary_harness:get())
-								end,
-								label = "Primary Model",
-								size = "sm",
-								w_full = true,
 							},
 						},
-						ui.show(function(): boolean
-							return wf_preset:get() ~= "fanout"
-						end, ui.column {
-							grow = 1,
-							min_w = 0,
-							gap = "$space.2",
-							Select {
-								value = wf_secondary_harness,
-								options = function()
-									return client.harness_options(true)
-								end,
-								label = "Secondary / Reviewer Harness",
-								size = "sm",
-								w_full = true,
-								on_change = function()
-									wf_secondary_model:set("")
-								end,
-							},
-							TextField {
-								value = wf_secondary_custom,
-								placeholder = "Or custom harness id (e.g. hermes, pi)",
-								size = "sm",
-							},
-							Select {
-								value = wf_secondary_model,
-								options = function()
-									local c = trim(wf_secondary_custom:get())
-									return client.models_for(if c ~= "" then c else wf_secondary_harness:get())
-								end,
-								label = "Secondary Model",
-								size = "sm",
-								w_full = true,
-							},
-						}),
 					},
-					TextArea {
-						value = wf_task,
+					ui.show(function(): boolean
+						return wf_preset:get() ~= "fanout"
+					end, ui.column {
+						w_full = true,
+						Settings.Rule(),
+						Settings.Row {
+							icon = "shield-check",
+							label = "Secondary / Reviewer Harness & Model",
+							description = "A different harness for fresh-context code review or side-by-side comparison.",
+							stacked = true,
+							control = ui.column {
+								w_full = true,
+								gap = "$space.2",
+								ui.row {
+									w_full = true,
+									gap = "$space.2",
+									flex_wrap = true,
+									ui.column {
+										grow = 1,
+										min_w = 180,
+										Select {
+											value = wf_secondary_harness,
+											options = function()
+												return client.harness_options(true)
+											end,
+											size = "sm",
+											w_full = true,
+											on_change = function()
+												wf_secondary_model:set("")
+											end,
+										},
+									},
+									ui.column {
+										grow = 1,
+										min_w = 180,
+										Select {
+											value = wf_secondary_model,
+											options = function()
+												local c = trim(wf_secondary_custom:get())
+												return client.models_for(if c ~= "" then c else wf_secondary_harness:get())
+											end,
+											size = "sm",
+											w_full = true,
+										},
+									},
+								},
+								TextField {
+									value = wf_secondary_custom,
+									placeholder = "Optional custom secondary harness id (e.g. claude-code, opencode, antigravity)",
+									size = "sm",
+								},
+							},
+						},
+					}),
+					Settings.Row {
+						icon = "document",
 						label = "Task / Goal",
-						placeholder = "Describe what the workflow should accomplish…",
-						rows = 3,
-						max_rows = 8,
-						size = "sm",
+						description = "Detailed objective handed to the workflow workers.",
+						stacked = true,
+						control = TextArea {
+							value = wf_task,
+							placeholder = "Describe what to build, refactor, audit, or compare…",
+							rows = 3,
+							max_rows = 8,
+							size = "sm",
+						},
 					},
 					ui.show(function(): boolean
 						return wf_preset:get() == "fanout"
-					end, TextArea {
-						value = wf_subtasks,
-						label = "Parallel Subtasks (one per line, up to 8 workers)",
-						placeholder = "1. Migrate auth module\n2. Update API handlers\n3. Add regression tests",
-						rows = 4,
-						max_rows = 10,
-						size = "sm",
+					end, ui.column {
+						w_full = true,
+						Settings.Rule(),
+						Settings.Row {
+							icon = "checklist",
+							label = "Parallel Subtasks (one per line, up to 8 workers)",
+							description = "Captain Deck spawns one dedicated worker thread per line.",
+							stacked = true,
+							control = TextArea {
+								value = wf_subtasks,
+								placeholder = "1. Migrate auth module\n2. Update API handlers\n3. Add regression tests",
+								rows = 4,
+								max_rows = 10,
+								size = "sm",
+							},
+						},
 					}),
-					TextField {
-						value = wf_rules,
+					Settings.Row {
+						icon = "lock-keyhole-unlocked",
 						label = "Shared Crew Rules (optional)",
-						placeholder = "e.g. Never push without asking. Include exact file paths in reports.",
-						size = "sm",
+						description = "Rules prepended to every worker in this workflow.",
+						stacked = true,
+						control = TextField {
+							value = wf_rules,
+							placeholder = "e.g. Never push without asking. Cite exact file paths and line numbers.",
+							size = "sm",
+						},
 					},
 					ui.row {
 						w_full = true,
+						px = "$space.4",
+						py = "$space.3",
 						justify = "end",
 						Button {
 							tone = "primary",
+							size = "sm",
 							busy = wf_busy,
 							on_click = submit_workflow,
-							Icon { name = "action-play", size = 14 },
+							Icon { name = "action-play", size = 13 },
 							zeron.s("deck.workflows.launch"),
 						},
 					},
@@ -824,7 +852,7 @@ return function(zeron: any, client: any): (props: { page: any, panel: any? }) ->
 			}
 		end
 
-		-- ── Existing Chats Tab (1-click Promote or Attach) ─────────────────
+		-- ── Existing Chats Tab (Settings.Group list) ───────────────────────
 		local function build_chats(): Node
 			return ui.presence(function(): string
 				local s = client.state:get()
@@ -850,10 +878,17 @@ return function(zeron: any, client: any): (props: { page: any, panel: any? }) ->
 				end)
 
 				if #list == 0 then
-					return EmptyState {
-						icon = "chat-round-line",
-						title = zeron.s("deck.chats.empty_title"),
-						body = zeron.s("deck.chats.empty_body"),
+					return Settings.Group {
+						ui.column {
+							w_full = true,
+							py = "$space.6",
+							px = "$space.4",
+							EmptyState {
+								icon = "chat-round-line",
+								title = zeron.s("deck.chats.empty_title"),
+								body = zeron.s("deck.chats.empty_body"),
+							},
+						},
 					}
 				end
 
@@ -865,26 +900,18 @@ return function(zeron: any, client: any): (props: { page: any, panel: any? }) ->
 					local sid = entry.id
 					local sess = entry.sess
 					local title = if type(sess.title) == "string" and sess.title ~= "" then sess.title else string.sub(sid, 1, 8)
-					table.insert(rows, Surface {
-						kind = "raised",
-						w_full = true,
-						px = "$space.3",
-						py = "$space.2",
-						ui.row {
-							w_full = true,
+					local sub = if sess.branch and sess.branch ~= ""
+						then `{sess.branch} · Updated {format_age(sess.updated)}`
+						else `Updated {format_age(sess.updated)}`
+
+					table.insert(rows, Settings.Row {
+						icon = "chat-round-line",
+						label = title,
+						description = sub,
+						truncate = true,
+						control = ui.row {
 							gap = "$space.2",
 							items = "center",
-							ui.column {
-								grow = 1,
-								min_w = 0,
-								gap = "$space.1",
-								FadeText { title, text_size = "$font.size.md", weight = "$font.weight.medium", color = "$text.primary" },
-								Text {
-									if sess.branch and sess.branch ~= "" then `{sess.branch} · {format_age(sess.updated)}` else format_age(sess.updated),
-									style = "caption",
-									tone = "tertiary",
-								},
-							},
 							Button {
 								size = "xs",
 								tone = "primary",
@@ -907,7 +934,7 @@ return function(zeron: any, client: any): (props: { page: any, panel: any? }) ->
 									Icon { name = "git-branch", size = 12 },
 									zeron.s("deck.chats.attach"),
 								}
-								else ui.div {},
+								else nil,
 							IconButton {
 								icon = "arrow-up-right",
 								size = "sm",
@@ -921,11 +948,15 @@ return function(zeron: any, client: any): (props: { page: any, panel: any? }) ->
 					})
 				end
 
-				return ui.column { w_full = true, gap = "$space.2", table.unpack(rows) }
-			end)
+				return Settings.Section {
+					title = zeron.s("deck.chats.heading"),
+					description = "Turn any active Zeron session into a Captain or attach it as a worker under an existing Captain.",
+					Settings.Group(rows),
+				}
+			end, { w_full = true })
 		end
 
-		-- ── Activity Timeline Tab ──────────────────────────────────────────
+		-- ── Activity Timeline Tab (Settings.Group list) ────────────────────
 		local function build_activity(): Node
 			return ui.presence(function(): string
 				local s = client.state:get()
@@ -934,28 +965,21 @@ return function(zeron: any, client: any): (props: { page: any, panel: any? }) ->
 				local s = client.state:peek() or {}
 				local events = s.events or {}
 				if #events == 0 then
-					return EmptyState {
-						icon = "clock-circle",
-						title = zeron.s("deck.activity.empty_title"),
-						body = zeron.s("deck.activity.empty_body"),
+					return Settings.Group {
+						ui.column {
+							w_full = true,
+							py = "$space.6",
+							px = "$space.4",
+							EmptyState {
+								icon = "clock-circle",
+								title = zeron.s("deck.activity.empty_title"),
+								body = zeron.s("deck.activity.empty_body"),
+							},
+						},
 					}
 				end
-				local rows: { Node } = {
-					ui.row {
-						w_full = true,
-						items = "center",
-						justify = "between",
-						Text { zeron.s("deck.activity.heading"), style = "label", tone = "tertiary" },
-						Button {
-							size = "xs",
-							tone = "ghost",
-							on_click = function()
-								client.call("clear_events")
-							end,
-							zeron.s("deck.activity.clear"),
-						},
-					},
-				}
+
+				local rows: { Node } = {}
 				for _, ev in events do
 					local tone: any = if ev.kind == "needs_you" or ev.kind == "awaiting_input"
 						then "warning"
@@ -966,65 +990,73 @@ return function(zeron: any, client: any): (props: { page: any, panel: any? }) ->
 						elseif ev.kind == "worker_finished" or ev.kind == "reported"
 						then "success"
 						else "neutral"
-					table.insert(rows, Surface {
-						kind = "raised",
-						w_full = true,
-						px = "$space.3",
-						py = "$space.2",
-						ui.row {
-							w_full = true,
-							gap = "$space.2",
-							items = "center",
-							Badge.Badge { ev.kind or "event", tone = tone, size = "sm" },
-							Text { ev.summary or "", style = "caption", tone = "primary", grow = 1, min_w = 0 },
-							Text { format_age(ev.at), style = "label", tone = "tertiary" },
-							if ev.chat_id
-								then IconButton {
-									icon = "arrow-up-right",
-									size = "sm",
-									tone = "quiet",
-									label = "Open chat",
-									on_click = function()
-										zeron.open({ session = ev.chat_id })
-									end,
-								}
-								else ui.div {},
-						},
+					table.insert(rows, Settings.Row {
+						label = ev.summary or "",
+						badge = Badge.Badge { ev.kind or "event", tone = tone, size = "sm" },
+						description = format_age(ev.at),
+						control = if ev.chat_id
+							then IconButton {
+								icon = "arrow-up-right",
+								size = "sm",
+								tone = "quiet",
+								label = "Open chat",
+								on_click = function()
+									zeron.open({ session = ev.chat_id })
+								end,
+							}
+							else nil,
 					})
 				end
-				return ui.column { w_full = true, gap = "$space.2", table.unpack(rows) }
-			end)
+
+				return Settings.Section {
+					title = zeron.s("deck.activity.heading"),
+					trail = Button {
+						size = "xs",
+						tone = "ghost",
+						on_click = function()
+							client.call("clear_events")
+						end,
+						zeron.s("deck.activity.clear"),
+					},
+					Settings.Group(rows),
+				}
+			end, { w_full = true })
 		end
 
-		-- ── Main Page Layout ───────────────────────────────────────────────
-		return ui.div {
+		local function gutter(): string
+			local w = width:get()
+			return if w > 0 and w < NARROW then "$space.4" else "$space.6"
+		end
+
+		-- ── Main Page Layout (`Settings.Page` inside centered scroll) ──────
+		return ui.column {
+			class = "captain-deck-page",
 			w_full = true,
 			h_full = true,
+			selectable = true,
+			on_resize = function(size)
+				local w = math.floor(size.w)
+				if w > 0 and w ~= width:peek() then
+					width:set(w)
+				end
+			end,
 			ui.scroll {
 				w_full = true,
 				h_full = true,
+				fade = { 16, 16 },
+				fade_overflow = true,
 				ui.column {
 					w_full = true,
-					max_w = 960,
-					mx = "auto",
-					px = "$space.6",
-					py = "$space.6",
-					gap = "$space.5",
-
-					-- Header
-					ui.row {
-						w_full = true,
-						gap = "$space.3",
-						items = "center",
-						wrap = true,
-						ui.column {
-							grow = 1,
-							min_w = 240,
-							gap = "$space.1",
-							Text { zeron.t("deck.title"), style = "title", heading = 1 },
-							Text { zeron.t("deck.subtitle"), style = "caption", tone = "secondary" },
-						},
-						ui.row {
+					min_h = "100%",
+					items = "center",
+					px = gutter,
+					pt = gutter,
+					pb = "$space.8",
+					Settings.Page {
+						title = zeron.t("deck.title"),
+						description = zeron.t("deck.subtitle"),
+						trail_top = true,
+						trail = ui.row {
 							gap = "$space.2",
 							items = "center",
 							IconButton {
@@ -1055,202 +1087,151 @@ return function(zeron: any, client: any): (props: { page: any, panel: any? }) ->
 								zeron.t("deck.new_captain"),
 							},
 						},
-					},
 
-					-- Service warning banner if service isn't approved or failed
-					ui.presence(function(): string
-						return client.service_err:get() or ""
-					end, function(err: string): Node
-						if err == "" then
-							return ui.div {}
-						end
-						return banner.Callout {
-							tone = "warning",
-							title = "Orchestration service needs attention",
-							body = err,
-							action = {
-								label = "Retry",
-								on_click = function()
-									client.refresh()
-								end,
-							},
-						}
-					end),
+						-- 1. Service warning callout (only if service failed)
+						ui.presence(function(): string
+							return client.service_err:get() or ""
+						end, function(err: string): Node
+							if err == "" then
+								return ui.div {}
+							end
+							return banner.Callout {
+								tone = "warning",
+								title = "Orchestration service needs attention",
+								body = err,
+								action = {
+									label = "Retry",
+									on_click = function()
+										client.refresh()
+									end,
+								},
+							}
+						end),
 
-					-- Headline stats strip
-					Surface {
-						kind = "raised",
-						w_full = true,
-						px = "$space.5",
-						py = "$space.3",
-						ui.row {
+						-- 2. Needs Your Attention Section (auto-appears when any item needs human action)
+						ui.presence(function(): string
+							local items = client.attention_items()
+							local s = client.state:get()
+							return if #items == 0 then "" else `att:{#items}:{s and s.rev or 0}`
+						end, function(key: string): Node
+							if key == "" then
+								return ui.div {}
+							end
+							local items = client.attention_items()
+							local att_rows: { Node } = {}
+							for _, item in items do
+								local reason_label = if item.status == "awaiting_input"
+									then zeron.s("deck.attention.awaiting_input")
+									elseif item.status == "limited"
+									then zeron.s("deck.attention.limited")
+									else zeron.s("deck.attention.errored")
+								table.insert(att_rows, Settings.Row {
+									lead = Status.StatusIcon { kind = client.status_kind(item.status) :: any, size = 15 },
+									label = item.title or reason_label,
+									badge = ui.row {
+										gap = "$space.1",
+										items = "center",
+										Badge.Badge { item.captain_name or "Captain", tone = "warning", size = "sm" },
+										Badge.Badge { item.role or "worker", tone = "neutral", size = "sm" },
+										if item.harness and item.harness ~= ""
+											then Badge.Badge { item.harness, tone = "neutral", size = "sm" }
+											else nil,
+									},
+									description = if item.detail and item.detail ~= "" then item.detail else reason_label,
+									control = ui.row {
+										gap = "$space.2",
+										items = "center",
+										Button {
+											size = "xs",
+											tone = "primary",
+											on_click = function()
+												zeron.open({ session = item.chat_id })
+											end,
+											zeron.s("deck.attention.open_chat"),
+										},
+										if item.kind == "escalation" and item.item_id
+											then Button {
+												size = "xs",
+												tone = "ghost",
+												on_click = function()
+													client.call("resolve_attention", { captain_id = item.captain_id, item_id = item.item_id })
+												end,
+												zeron.s("deck.attention.resolve"),
+											}
+											else nil,
+									},
+								})
+							end
+							return Settings.Section {
+								title = `{zeron.s("deck.attention.title")} ({#items})`,
+								Settings.Group(att_rows),
+							}
+						end),
+
+						-- 3. Navigation Tabs + live status badges on the tab rule's trail
+						ui.column {
 							w_full = true,
-							gap = "$space.6",
-							wrap = true,
-							Stat {
-								value = function(): string
+							gap = "$space.4",
+							Tabs {
+								value = active_tab,
+								rule = true,
+								inset = Settings.inset(ui.theme.get("space.1") :: number?),
+								label = "Captain Deck sections",
+								options = {
+									{ value = "fleet", label = zeron.s("deck.tabs.fleet") },
+									{ value = "workflows", label = zeron.s("deck.tabs.workflows") },
+									{ value = "chats", label = zeron.s("deck.tabs.chats") },
+									{ value = "activity", label = zeron.s("deck.tabs.activity") },
+								},
+								trail = ui.presence(function(): string
 									local s = client.state:get()
-									local n = 0
-									for _ in (s and s.captains or {}) do
-										n += 1
+									return `counts:{s and s.rev or 0}`
+								end, function(): Node
+									local s = client.state:peek() or {}
+									local n_caps, n_workers, n_run = 0, 0, 0
+									for _ in (s.captains or {}) do
+										n_caps += 1
 									end
-									return tostring(n)
-								end,
-								label = zeron.s("deck.stats.captains"),
-							},
-							Stat {
-								value = function(): string
-									local s = client.state:get()
-									local n = 0
-									for _ in (s and s.workers or {}) do
-										n += 1
-									end
-									return tostring(n)
-								end,
-								label = zeron.s("deck.stats.workers"),
-							},
-							Stat {
-								value = function(): string
-									local s = client.state:get()
-									local n = 0
-									for _, w in (s and s.workers or {}) do
+									for _, w in (s.workers or {}) do
+										n_workers += 1
 										if w.status == "running" then
-											n += 1
+											n_run += 1
 										end
 									end
-									return tostring(n)
-								end,
-								label = zeron.s("deck.stats.running"),
-								tone = "$accent",
-							},
-							Stat {
-								value = function(): string
-									return tostring(#client.attention_items())
-								end,
-								label = zeron.s("deck.stats.attention"),
-								tone = function(): any
-									return if #client.attention_items() > 0 then "$warning" else "$text.secondary"
-								end,
-							},
-						},
-					},
-
-					-- Attention Digest ("Needs You")
-					ui.presence(function(): string
-						local items = client.attention_items()
-						local s = client.state:get()
-						return if #items == 0 then "" else `att:{#items}:{s and s.rev or 0}`
-					end, function(key: string): Node
-						if key == "" then
-							return ui.div {}
-						end
-						local items = client.attention_items()
-						local rows: { Node } = {
-							ui.row {
-								w_full = true,
-								gap = "$space.2",
-								items = "center",
-								Icon { name = "bell", size = 14, color = "$warning" },
-								Text { `{zeron.s("deck.attention.title")} ({#items})`, style = "heading" },
-							},
-						}
-						for _, item in items do
-							local reason_label = if item.status == "awaiting_input"
-								then zeron.s("deck.attention.awaiting_input")
-								elseif item.status == "limited"
-								then zeron.s("deck.attention.limited")
-								else zeron.s("deck.attention.errored")
-							table.insert(rows, Surface {
-								kind = "sunken",
-								w_full = true,
-								px = "$space.3",
-								py = "$space.2",
-								ui.row {
-									w_full = true,
-									gap = "$space.2",
-									items = "center",
-									Status.StatusIcon { kind = client.status_kind(item.status) :: any, size = 14 },
-									ui.column {
-										grow = 1,
-										min_w = 0,
+									local n_att = #client.attention_items()
+									return ui.row {
 										gap = "$space.1",
-										ui.row {
-											gap = "$space.2",
-											items = "center",
-											Badge.Badge { item.captain_name or "Captain", tone = "warning", size = "sm" },
-											Badge.Badge { item.role or "worker", tone = "neutral", size = "sm" },
-											if item.harness and item.harness ~= ""
-												then Badge.Badge { item.harness, tone = "neutral", size = "sm" }
-												else ui.div {},
-											FadeText { item.title or reason_label, grow = 1, min_w = 0, text_size = "$font.size.sm", weight = "$font.weight.medium", color = "$text.primary" },
-										},
-										Text {
-											if item.detail and item.detail ~= "" then item.detail else reason_label,
-											style = "caption",
-											tone = "secondary",
-											truncate = true,
-										},
-									},
-									Button {
-										size = "xs",
-										tone = "primary",
-										on_click = function()
-											zeron.open({ session = item.chat_id })
-										end,
-										zeron.s("deck.attention.open_chat"),
-									},
-									if item.kind == "escalation" and item.item_id
-										then Button {
-											size = "xs",
-											tone = "ghost",
-											on_click = function()
-												client.call("resolve_attention", { captain_id = item.captain_id, item_id = item.item_id })
-											end,
-											zeron.s("deck.attention.resolve"),
-										}
-										else ui.div {},
-								},
-							})
-						end
-						return Surface {
-							kind = "raised",
-							w_full = true,
-							p = "$space.4",
-							border_color = "$warning",
-							ui.column { w_full = true, gap = "$space.2", table.unpack(rows) },
-						}
-					end),
+										items = "center",
+										Badge.Badge { `{n_caps} Captains`, tone = "neutral", size = "sm", tabular = true },
+										Badge.Badge { `{n_workers} Crew`, tone = "info", size = "sm", tabular = true },
+										if n_run > 0
+											then Badge.Badge { `{n_run} Running`, tone = "accent", size = "sm", dot = true, tabular = true }
+											else nil,
+										if n_att > 0
+											then Badge.Badge { `{n_att} Needs You`, tone = "warning", size = "sm", dot = true, tabular = true }
+											else nil,
+									}
+								end),
+							},
 
-					-- Navigation Tabs
-					Tabs {
-						value = active_tab,
-						rule = true,
-						label = "Captain Deck sections",
-						options = {
-							{ value = "fleet", label = zeron.s("deck.tabs.fleet") },
-							{ value = "workflows", label = zeron.s("deck.tabs.workflows") },
-							{ value = "chats", label = zeron.s("deck.tabs.chats") },
-							{ value = "activity", label = zeron.s("deck.tabs.activity") },
+							ui.presence(function(): string
+								return active_tab:get()
+							end, function(tab: string): Node
+								if tab == "workflows" then
+									return build_workflows()
+								elseif tab == "chats" then
+									return build_chats()
+								elseif tab == "activity" then
+									return build_activity()
+								end
+								return build_fleet()
+							end, { w_full = true }),
 						},
 					},
-
-					-- Tab Body
-					ui.presence(function(): string
-						return active_tab:get()
-					end, function(tab: string): Node
-						if tab == "workflows" then
-							return build_workflows()
-						elseif tab == "chats" then
-							return build_chats()
-						elseif tab == "activity" then
-							return build_activity()
-						end
-						return build_fleet()
-					end),
 				},
 			},
 
-			-- Slide-over Sheet: New Captain
+			-- Slide-over Sheet: New Captain (Settings.Group form)
 			Dialog.Sheet {
 				open = new_cap_open,
 				title = zeron.s("deck.new_captain"),
@@ -1278,60 +1259,86 @@ return function(zeron: any, client: any): (props: { page: any, panel: any? }) ->
 				},
 				ui.column {
 					w_full = true,
-					gap = "$space.3",
-					TextField { value = nc_name, label = "Captain Name", placeholder = "e.g. Release Captain, Auth Migration, Bug Triage", size = "sm" },
-					TextField { value = nc_mission, label = "Mission", placeholder = "What goal does this Captain own?", size = "sm" },
-					Select {
-						value = nc_harness,
-						options = function()
-							return client.harness_options(true)
-						end,
-						label = "Harness",
-						size = "sm",
-						w_full = true,
-						on_change = function()
-							nc_model:set("")
-						end,
-					},
-					TextField { value = nc_custom_harness, label = "Custom harness id (optional)", placeholder = "e.g. acp.gemini, hermes, opencode, pi", size = "sm" },
-					Select {
-						value = nc_model,
-						options = function()
-							local c = trim(nc_custom_harness:get())
-							return client.models_for(if c ~= "" then c else nc_harness:get())
-						end,
-						label = "Model",
-						size = "sm",
-						w_full = true,
-					},
-					Select {
-						value = nc_project,
-						options = function()
-							return client.project_options()
-						end,
-						label = "Project",
-						size = "sm",
-						w_full = true,
-					},
-					TextArea { value = nc_rules, label = "Shared Crew Rules (prepended to every worker)", placeholder = "e.g. Always run tests. Never push or merge without human sign-off.", rows = 3, max_rows = 6, size = "sm" },
-					TextArea { value = nc_prompt, label = "Opening Prompt (optional)", placeholder = "Leave blank to initialize with the Captain mission.", rows = 3, max_rows = 6, size = "sm" },
-					ui.row {
-						w_full = true,
-						items = "center",
-						justify = "between",
-						Text { "Auto-report worker completions back to this Captain", style = "caption", tone = "secondary" },
-						Switch { value = nc_auto_report, label = "Auto-report" },
+					gap = "$space.4",
+					Settings.Group {
+						Settings.Row {
+							label = "Captain Name",
+							stacked = true,
+							control = TextField { value = nc_name, placeholder = "e.g. Release Captain, Auth Migration, Bug Triage", size = "sm" },
+						},
+						Settings.Row {
+							label = "Mission",
+							stacked = true,
+							control = TextField { value = nc_mission, placeholder = "What goal does this Captain own?", size = "sm" },
+						},
+						Settings.Row {
+							label = "Harness & Model",
+							stacked = true,
+							control = ui.column {
+								w_full = true,
+								gap = "$space.2",
+								Select {
+									value = nc_harness,
+									options = function()
+										return client.harness_options(true)
+									end,
+									size = "sm",
+									w_full = true,
+									on_change = function()
+										nc_model:set("")
+									end,
+								},
+								TextField { value = nc_custom_harness, placeholder = "Optional custom harness id (e.g. acp.gemini, hermes, pi)", size = "sm" },
+								Select {
+									value = nc_model,
+									options = function()
+										local c = trim(nc_custom_harness:get())
+										return client.models_for(if c ~= "" then c else nc_harness:get())
+									end,
+									size = "sm",
+									w_full = true,
+								},
+							},
+						},
+						Settings.Row {
+							label = "Project",
+							stacked = true,
+							control = Select {
+								value = nc_project,
+								options = function()
+									return client.project_options()
+								end,
+								size = "sm",
+								w_full = true,
+							},
+						},
+						Settings.Row {
+							label = "Shared Crew Rules",
+							description = "Automatically prepended to every worker spawned under this Captain.",
+							stacked = true,
+							control = TextArea { value = nc_rules, placeholder = "e.g. Always run tests. Never push or merge without human sign-off.", rows = 3, max_rows = 6, size = "sm" },
+						},
+						Settings.Row {
+							label = "Opening Prompt (optional)",
+							stacked = true,
+							control = TextArea { value = nc_prompt, placeholder = "Leave blank to initialize with the Captain mission.", rows = 3, max_rows = 6, size = "sm" },
+						},
+						Settings.Row {
+							label = "Auto-report to Captain",
+							description = "Automatically report worker completions back to this Captain.",
+							control = Switch { value = nc_auto_report, label = "Auto-report" },
+						},
 					},
 				},
 			},
 
-			-- Slide-over Sheet: Spawn Worker
+			-- Slide-over Sheet: Spawn Worker (Settings.Group form)
 			Dialog.Sheet {
 				open = spawn_open,
 				title = function(): string
 					return `Spawn Worker · {sw_captain_name:get()}`
 				end,
-				description = "Start a worker chat on ANY harness/model and attach it to this Captain's Crew tree.",
+				description = "Start a worker chat on ANY harness/model and attach it to this Captain's Crew.",
 				foot = ui.row {
 					w_full = true,
 					gap = "$space.2",
@@ -1355,77 +1362,98 @@ return function(zeron: any, client: any): (props: { page: any, panel: any? }) ->
 				},
 				ui.column {
 					w_full = true,
-					gap = "$space.3",
-					Select { value = sw_role, options = ROLES, label = "Role", size = "sm", w_full = true },
-					Select {
-						value = sw_harness,
-						options = function()
-							return client.harness_options(true)
-						end,
-						label = "Harness",
-						size = "sm",
-						w_full = true,
-						on_change = function()
-							sw_model:set("")
-						end,
-					},
-					TextField { value = sw_custom_harness, label = "Custom harness id (optional)", placeholder = "e.g. acp.gemini, hermes, opencode, pi", size = "sm" },
-					Select {
-						value = sw_model,
-						options = function()
-							local c = trim(sw_custom_harness:get())
-							return client.models_for(if c ~= "" then c else sw_harness:get())
-						end,
-						label = "Model",
-						size = "sm",
-						w_full = true,
-					},
-					Select {
-						value = sw_project,
-						options = function()
-							return client.project_options()
-						end,
-						label = "Project",
-						size = "sm",
-						w_full = true,
-					},
-					TextField { value = sw_task, label = "Task summary", placeholder = "Short title shown in Crew tree", size = "sm" },
-					TextArea { value = sw_prompt, label = "Worker Prompt", placeholder = "Clear instructions for this worker…", rows = 4, max_rows = 8, size = "sm" },
-					ui.row {
-						w_full = true,
-						items = "center",
-						justify = "between",
-						Text { "Auto-handoff to another harness when complete", style = "caption", tone = "secondary" },
-						Switch { value = sw_enable_handoff, label = "Enable handoff" },
-					},
-					ui.show(function(): boolean
-						return sw_enable_handoff:get()
-					end, Surface {
-						kind = "sunken",
-						w_full = true,
-						p = "$space.3",
-						ui.column {
-							w_full = true,
-							gap = "$space.2",
-							Select { value = sw_handoff_role, options = ROLES, label = "Next-stage role", size = "sm", w_full = true },
-							Select {
-								value = sw_handoff_harness,
+					gap = "$space.4",
+					Settings.Group {
+						Settings.Row {
+							label = "Role",
+							control = Select { value = sw_role, options = ROLES, size = "sm" },
+						},
+						Settings.Row {
+							label = "Harness & Model",
+							stacked = true,
+							control = ui.column {
+								w_full = true,
+								gap = "$space.2",
+								Select {
+									value = sw_harness,
+									options = function()
+										return client.harness_options(true)
+									end,
+									size = "sm",
+									w_full = true,
+									on_change = function()
+										sw_model:set("")
+									end,
+								},
+								TextField { value = sw_custom_harness, placeholder = "Optional custom harness id (e.g. acp.gemini, hermes, pi)", size = "sm" },
+								Select {
+									value = sw_model,
+									options = function()
+										local c = trim(sw_custom_harness:get())
+										return client.models_for(if c ~= "" then c else sw_harness:get())
+									end,
+									size = "sm",
+									w_full = true,
+								},
+							},
+						},
+						Settings.Row {
+							label = "Project",
+							stacked = true,
+							control = Select {
+								value = sw_project,
 								options = function()
-									return client.harness_options(true)
+									return client.project_options()
 								end,
-								label = "Next-stage harness",
 								size = "sm",
 								w_full = true,
 							},
-							TextArea {
-								value = sw_handoff_prompt,
-								label = "Next-stage prompt (use {{REPORT}} for previous reply)",
-								rows = 3,
-								max_rows = 6,
-								size = "sm",
+						},
+						Settings.Row {
+							label = "Task & Prompt",
+							stacked = true,
+							control = ui.column {
+								w_full = true,
+								gap = "$space.2",
+								TextField { value = sw_task, placeholder = "Short title shown in Crew list", size = "sm" },
+								TextArea { value = sw_prompt, placeholder = "Clear instructions for this worker…", rows = 4, max_rows = 8, size = "sm" },
 							},
 						},
-					}),
+						Settings.Row {
+							label = "Auto-handoff on completion",
+							description = "Automatically spawn a follow-up worker (e.g. cross-harness reviewer) when this worker finishes.",
+							control = Switch { value = sw_enable_handoff, label = "Enable handoff" },
+						},
+						ui.show(function(): boolean
+							return sw_enable_handoff:get()
+						end, ui.column {
+							w_full = true,
+							Settings.Rule(),
+							Settings.Row {
+								label = "Next-stage Role & Harness",
+								stacked = true,
+								control = ui.column {
+									w_full = true,
+									gap = "$space.2",
+									Select { value = sw_handoff_role, options = ROLES, size = "sm", w_full = true },
+									Select {
+										value = sw_handoff_harness,
+										options = function()
+											return client.harness_options(true)
+										end,
+										size = "sm",
+										w_full = true,
+									},
+									TextArea {
+										value = sw_handoff_prompt,
+										rows = 3,
+										max_rows = 6,
+										size = "sm",
+									},
+								},
+							},
+						}),
+					},
 				},
 			},
 
@@ -1458,18 +1486,30 @@ return function(zeron: any, client: any): (props: { page: any, panel: any? }) ->
 				},
 				ui.column {
 					w_full = true,
-					gap = "$space.3",
-					Select {
-						value = at_captain_id,
-						options = function()
-							return captain_picker_options(false)
-						end,
-						label = "Parent Captain",
-						size = "sm",
-						w_full = true,
+					gap = "$space.4",
+					Settings.Group {
+						Settings.Row {
+							label = "Parent Captain",
+							stacked = true,
+							control = Select {
+								value = at_captain_id,
+								options = function()
+									return captain_picker_options(false)
+								end,
+								size = "sm",
+								w_full = true,
+							},
+						},
+						Settings.Row {
+							label = "Worker Role",
+							control = Select { value = at_role, options = ROLES, size = "sm" },
+						},
+						Settings.Row {
+							label = "Task Label",
+							stacked = true,
+							control = TextField { value = at_task, size = "sm" },
+						},
 					},
-					Select { value = at_role, options = ROLES, label = "Worker Role", size = "sm", w_full = true },
-					TextField { value = at_task, label = "Task label", size = "sm" },
 				},
 			},
 		}

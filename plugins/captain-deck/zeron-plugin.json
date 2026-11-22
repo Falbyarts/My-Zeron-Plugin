@@ -67,16 +67,16 @@
       "README.md": "1af0d590b66ab209c8e844d934d7dd1533a1e38276bd3ba3456aad492cba3c73",
       "badges.luau": "48f41b700a97897e23cc346c6bc7606a75b75c62fe2cfc9f81d8584c11644121",
       "client.luau": "d9a21a251792071e18c5ae0c506e067ed72859c3b5b1aeb3d98f58c3bf4e5448",
-      "deck.luau": "40997ffbb6cd44bce76d9684fe245c577e87f1d7e3cccc7e4cc5f0ce6d8d02bf",
+      "deck.luau": "ecf28b547c1d751a574bdc16ae0f481fae33f1f3b84f830e34d262a1508c4159",
       "icon.svg": "8c2ee2ea04824d1b67b5ec8124fd007d0aa0aa25cf592f13e574ae1abf2bc735",
       "init.luau": "411dfbece320d70d26f93556865bf14306e767b11d264ff0eca905e40c43eabe",
-      "inspector.luau": "60135178a3151eac41648ae7550797938e2820e9b894f1fc01dc4d07bfea5567",
+      "inspector.luau": "51c50b486e29e267172a2180f42836a098ab65602fde50d300473da60db761ef",
       "locales/en.json": "e2b6e2dfd4e15edffa1b561f9777fbdf66634a55728be8a192228258bcc49ece",
       "service.luau": "081b5041a288835cc331aadf32b7f7e6e58c6acbbd440037489e7b75ded6ee72",
       "zeron.luau": "178b79b55566c9643b26181539b8e1348482179a169da98ba384cd66f3f8a483"
     },
     "key": "qe0KcCOqgglmdlcmQdH38lS8wk-P2wEL0lS_5m7L9II",
-    "sig": "f8XC5Dv4Lub3FWOSb5EVWhaBBDFNgzHIIj-e7c1q0I9RCYJtxEmqzt8vlf2eJ7L2-87FrTJYzdThZeGaKn9jDg"
+    "sig": "9jlciJZBfAi3Bl2Lu8hW266FfZ-FnmbsB5RhnxDx3Cg-zBZlctDSmyCzDsbPbMaPiw3bOSxJOVlovZzknArBAA"
   },
   "tools": [
     {
@@ -308,5 +308,5 @@
       "name": "captain_update_digest"
     }
   ],
-  "version": "1.0.0"
+  "version": "1.0.1"
 }
