@@ -1,0 +1,312 @@
+{
+  "description": "Harness-agnostic multi-agent orchestration deck: Captains, Crew trees, cross-harness workflows, live attention digest, and native agent tools.",
+  "entry": "init.luau",
+  "icon": "icon.svg",
+  "id": "captain-deck",
+  "name": "Captain Deck",
+  "permissions": [
+    "ui.add",
+    "pages.add",
+    "panel.tabs",
+    "navigate",
+    "sessions.read",
+    "messages.read",
+    "messages.send",
+    "models.read",
+    "notifications",
+    "service",
+    "tools"
+  ],
+  "service": "service.luau",
+  "settings": [
+    {
+      "default": true,
+      "description": "Automatically send a concise report to a worker's Captain when the worker finishes a turn or hits an error.",
+      "id": "default_auto_report",
+      "kind": "switch",
+      "label": "Auto-report to Captain",
+      "section": "Orchestration"
+    },
+    {
+      "default": true,
+      "description": "Post a Zeron notification when a worker awaits input, hits an error, or a Captain flags an item for you.",
+      "id": "notify_on_attention",
+      "kind": "switch",
+      "label": "Attention notifications",
+      "section": "Orchestration"
+    },
+    {
+      "default": "",
+      "description": "Default harness id for Cross-Harness Review (e.g. claude-code, opencode, antigravity, pi, codex, hermes). Leave blank to pick automatically.",
+      "id": "default_reviewer_harness",
+      "kind": "text",
+      "label": "Preferred reviewer harness",
+      "placeholder": "e.g. antigravity, opencode, claude-code, pi",
+      "section": "Orchestration"
+    },
+    {
+      "default": true,
+      "description": "Show Captain and worker role pills beside orchestrated chats in the sidebar.",
+      "id": "show_sidebar_badges",
+      "kind": "switch",
+      "label": "Show sidebar badges",
+      "section": "Interface"
+    },
+    {
+      "default": true,
+      "description": "Show a Captain/Crew status pill or quick Promote button in each chat's header.",
+      "id": "show_header_pill",
+      "kind": "switch",
+      "label": "Show chat header controls",
+      "section": "Interface"
+    }
+  ],
+  "settings_description": "Orchestrate agents across any harness in Zeron with Captains, Crew trees, cross-harness workflows, and a live attention digest.",
+  "signature": {
+    "files": {
+      "README.md": "1af0d590b66ab209c8e844d934d7dd1533a1e38276bd3ba3456aad492cba3c73",
+      "badges.luau": "48f41b700a97897e23cc346c6bc7606a75b75c62fe2cfc9f81d8584c11644121",
+      "client.luau": "d9a21a251792071e18c5ae0c506e067ed72859c3b5b1aeb3d98f58c3bf4e5448",
+      "deck.luau": "40997ffbb6cd44bce76d9684fe245c577e87f1d7e3cccc7e4cc5f0ce6d8d02bf",
+      "icon.svg": "8c2ee2ea04824d1b67b5ec8124fd007d0aa0aa25cf592f13e574ae1abf2bc735",
+      "init.luau": "411dfbece320d70d26f93556865bf14306e767b11d264ff0eca905e40c43eabe",
+      "inspector.luau": "60135178a3151eac41648ae7550797938e2820e9b894f1fc01dc4d07bfea5567",
+      "locales/en.json": "e2b6e2dfd4e15edffa1b561f9777fbdf66634a55728be8a192228258bcc49ece",
+      "service.luau": "081b5041a288835cc331aadf32b7f7e6e58c6acbbd440037489e7b75ded6ee72",
+      "zeron.luau": "178b79b55566c9643b26181539b8e1348482179a169da98ba384cd66f3f8a483"
+    },
+    "key": "qe0KcCOqgglmdlcmQdH38lS8wk-P2wEL0lS_5m7L9II",
+    "sig": "f8XC5Dv4Lub3FWOSb5EVWhaBBDFNgzHIIj-e7c1q0I9RCYJtxEmqzt8vlf2eJ7L2-87FrTJYzdThZeGaKn9jDg"
+  },
+  "tools": [
+    {
+      "description": "Inspect Captain Deck orchestration state: Captains, their crew workers, live statuses, latest worker replies, shared rules, digest, and unresolved Needs You items. Pass captain_id to narrow to one Captain, or omit to inspect the calling chat's Captain or all Captains.",
+      "input": {
+        "properties": {
+          "captain_id": {
+            "description": "Optional Captain chat id. If omitted and the calling chat is a Captain or worker, defaults to that Captain; otherwise returns all Captains.",
+            "type": "string"
+          },
+          "include_replies": {
+            "description": "Include latest reply excerpts for each worker (default true).",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "captain_status"
+    },
+    {
+      "description": "Promote a Zeron chat (default: the calling chat) into a Captain orchestrator that can spawn and coordinate worker chats across any harness.",
+      "input": {
+        "properties": {
+          "auto_report": {
+            "description": "Automatically send worker completion summaries back to this Captain chat (default true).",
+            "type": "boolean"
+          },
+          "chat_id": {
+            "description": "Chat id to promote. Defaults to the calling chat.",
+            "type": "string"
+          },
+          "mission": {
+            "description": "Goal or mission statement for this Captain.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Short display name for the Captain.",
+            "type": "string"
+          },
+          "rules": {
+            "description": "Shared rules automatically prepended to every worker spawned under this Captain.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "captain_promote"
+    },
+    {
+      "description": "Spawn a new worker chat on ANY Zeron harness/model/project/device and attach it under a Captain. Works identically across Pi, Claude Code, Codex, OpenCode, Antigravity, Hermes, Cursor, and any ACP agent.",
+      "input": {
+        "properties": {
+          "auto_report": {
+            "description": "Whether to auto-report completion back to the Captain (defaults to Captain's setting).",
+            "type": "boolean"
+          },
+          "captain_id": {
+            "description": "Parent Captain chat id. Defaults to the calling chat (promoting it automatically if needed).",
+            "type": "string"
+          },
+          "cwd": {
+            "description": "Optional working directory path.",
+            "type": "string"
+          },
+          "device": {
+            "description": "Optional target device id.",
+            "type": "string"
+          },
+          "effort": {
+            "description": "Optional reasoning effort level for the target model.",
+            "type": "string"
+          },
+          "handoff": {
+            "description": "Optional next-stage worker automatically spawned when this worker completes cleanly.",
+            "properties": {
+              "effort": {
+                "type": "string"
+              },
+              "harness": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "prompt_template": {
+                "description": "Prompt for the next-stage worker. Use {{REPORT}} to inject the previous worker's final reply.",
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "task": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "harness": {
+            "description": "Optional target harness id (e.g. claude-code, codex, opencode, antigravity, pi, hermes, cursor, or any ACP harness id). Omit to use Zeron's default.",
+            "type": "string"
+          },
+          "model": {
+            "description": "Optional model id for the target harness.",
+            "type": "string"
+          },
+          "project": {
+            "description": "Optional Zeron project id.",
+            "type": "string"
+          },
+          "prompt": {
+            "description": "Full first prompt sent to the worker chat.",
+            "type": "string"
+          },
+          "role": {
+            "description": "Worker role label, e.g. builder, reviewer, researcher, tester, planner.",
+            "type": "string"
+          },
+          "task": {
+            "description": "Short human-visible task summary shown in the Crew tree.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "name": "captain_spawn_worker"
+    },
+    {
+      "description": "Send a follow-up or mid-turn steer message to any worker or Captain chat regardless of harness.",
+      "input": {
+        "properties": {
+          "chat_id": {
+            "description": "Target worker or Captain chat id.",
+            "type": "string"
+          },
+          "mode": {
+            "description": "Delivery mode when the chat is busy: queue (default) or steer.",
+            "enum": [
+              "queue",
+              "steer"
+            ],
+            "type": "string"
+          },
+          "text": {
+            "description": "Message to send.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chat_id",
+          "text"
+        ],
+        "type": "object"
+      },
+      "name": "captain_message_worker"
+    },
+    {
+      "description": "Attach an existing Zeron chat as a worker under a Captain so its turns, status, and reports are tracked in the Crew tree.",
+      "input": {
+        "properties": {
+          "captain_id": {
+            "description": "Parent Captain chat id. Defaults to the calling chat.",
+            "type": "string"
+          },
+          "role": {
+            "description": "Role label (e.g. builder, reviewer, researcher).",
+            "type": "string"
+          },
+          "task": {
+            "description": "Short task description.",
+            "type": "string"
+          },
+          "worker_chat": {
+            "description": "Existing chat id to attach as a worker.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "worker_chat"
+        ],
+        "type": "object"
+      },
+      "name": "captain_attach_worker"
+    },
+    {
+      "description": "Update a Captain's persistent mission, shared rules, live digest, or escalate/resolve a Needs You item for the human.",
+      "input": {
+        "properties": {
+          "captain_id": {
+            "description": "Captain chat id. Defaults to the calling chat or its parent Captain.",
+            "type": "string"
+          },
+          "digest": {
+            "description": "Updated live digest summary.",
+            "type": "string"
+          },
+          "flag_needs_you": {
+            "description": "Escalate a decision or blocker to the human (appears in Needs You and sends a notification).",
+            "properties": {
+              "detail": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "worker_chat": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "mission": {
+            "description": "Updated mission statement.",
+            "type": "string"
+          },
+          "resolve_item_id": {
+            "description": "Mark an existing Needs You item id as resolved.",
+            "type": "string"
+          },
+          "rules": {
+            "description": "Updated shared rules for future workers.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "captain_update_digest"
+    }
+  ],
+  "version": "1.0.0"
+}

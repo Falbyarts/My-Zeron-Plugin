@@ -12,6 +12,7 @@ Semua plugin di repository ini gratis, *open-source*, dan berjalan **sepenuhnya 
 
 | Plugin | Ringkasan | Versi | Rilis & Panduan |
 | --- | --- | --- | --- |
+| **Captain Deck** | Dek kontrol orkestrasi multi-agent *native* Zeron yang **100% harness-agnostic** (Pi, Claude Code, Codex, OpenCode, Antigravity, Hermes, Cursor, ACP). Dilengkapi **Captains & Crew Trees**, **Attention Digest (*Needs You*)**, **Cross-Harness Workflows** (`Build → Review`, `Fan-Out Swarm`, `Compare`), **Crew Inspector** di side panel, dan 6 native agent tools. | `1.0.0` | [Panduan lengkap](docs/captain-deck.md) · [Halaman Rilis](https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/captain-deck-v1.0.0) |
 | **Heatmap-LocLabs** | Menampilkan heatmap commit Git lokal selama setahun terakhir tepat di bawah kotak chat **New Chat**. Arahkan kursor ke kotak berwarna untuk melihat daftar commit hari itu, dan klik ikon **refresh** kecil di samping jumlah commit untuk membaca ulang repo Git kapan saja. | `1.3.1` | [Panduan lengkap](docs/heatmap-loclabs.md) · [Halaman Rilis](https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.3.1) |
 
 ---
@@ -101,8 +102,10 @@ Masih menemukan kendala? Silakan buat **Issue** di repository ini dengan menyert
 
 ```text
 plugins/
+  captain-deck/          Plugin Captain Deck v1.0.0 (sudah ditandatangani & siap dipasang)
   heatmap-loclabs/       Plugin Heatmap-LocLabs v1.3.1 (sudah ditandatangani & siap dipasang)
 docs/
+  captain-deck.md        Panduan lengkap penggunaan Captain Deck
   heatmap-loclabs.md     Panduan lengkap penggunaan Heatmap-LocLabs
   development.md         Catatan alur kerja pemeliharaan plugin
 assets/

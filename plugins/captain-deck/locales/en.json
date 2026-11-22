@@ -1,0 +1,120 @@
+{
+  "page": {
+    "title": "Captain Deck"
+  },
+  "deck": {
+    "title": "Captain Deck",
+    "subtitle": "Harness-agnostic multi-agent orchestration across every agent in Zeron",
+    "refresh": "Refresh deck",
+    "new_captain": "New Captain",
+    "launch_workflow": "Launch Workflow",
+    "search_placeholder": "Filter captains, crew, roles, or harnesses…",
+    "stats": {
+      "captains": "Captains",
+      "workers": "Crew",
+      "running": "Running",
+      "attention": "Needs You"
+    },
+    "tabs": {
+      "fleet": "Fleet",
+      "workflows": "Workflows",
+      "chats": "Chats",
+      "activity": "Activity"
+    },
+    "attention": {
+      "title": "Needs Your Attention",
+      "open_chat": "Open Chat",
+      "resolve": "Resolve",
+      "awaiting_input": "Awaiting your input or approval",
+      "errored": "Turn errored",
+      "limited": "Usage limit hit"
+    },
+    "fleet": {
+      "empty_title": "No Captains on deck yet",
+      "empty_body": "Start a new Captain on any harness, promote an existing chat, or launch a cross-harness workflow.",
+      "no_crew": "No crew assigned yet. Spawn a worker on any harness or attach an existing chat.",
+      "spawn_worker": "Spawn Worker",
+      "attach_chat": "Attach Chat",
+      "inspector": "Inspector",
+      "open_chat": "Open",
+      "edit": "Edit",
+      "demote": "Demote",
+      "auto_report_on": "Auto-report",
+      "auto_report_off": "Manual",
+      "schedule_badge": "Every {mins}m",
+      "steer": "Steer",
+      "send": "Send",
+      "detach": "Detach",
+      "handoff": "Then -> {role} ({harness})",
+      "rules_label": "Shared Rules",
+      "digest_label": "Digest"
+    },
+    "workflows": {
+      "heading": "Cross-Harness Workflows",
+      "intro": "Combine any harnesses and models in Zeron without harness lock-in. Captain Deck spawns each stage, tracks live turns, and handles automatic handoffs.",
+      "preset_build_review": "Build -> Cross-Harness Review",
+      "preset_build_review_desc": "One harness builds the task; when it finishes, a different harness automatically reviews the result read-only.",
+      "preset_fanout": "Plan & Fan-Out Swarm",
+      "preset_fanout_desc": "Spin up parallel workers across subtasks (one per line) on any harness and report back to one Captain.",
+      "preset_compare": "Parallel Harness Compare",
+      "preset_compare_desc": "Run the same prompt side-by-side on two different harnesses or models under one Captain to compare outputs.",
+      "launch": "Launch Workflow",
+      "launching": "Launching…"
+    },
+    "chats": {
+      "heading": "Promote or Attach Existing Chats",
+      "empty_title": "No unassigned chats",
+      "empty_body": "Every active chat is already assigned to Captain Deck, or no chats have been created yet.",
+      "promote": "Promote to Captain",
+      "attach": "Attach as Worker"
+    },
+    "activity": {
+      "heading": "Orchestration Activity",
+      "clear": "Clear",
+      "empty_title": "No orchestration events yet",
+      "empty_body": "Spawns, completions, automated handoffs, and attention alerts appear here in real time."
+    }
+  },
+  "badges": {
+    "captain": "Captain",
+    "captain_count": "Captain · {n}",
+    "promote_short": "Captain",
+    "open_inspector": "Open Crew Inspector",
+    "promote_tooltip": "Promote this chat to a Captain"
+  },
+  "menus": {
+    "promote": "Promote to Captain",
+    "review": "Send to Cross-Harness Review…",
+    "open_deck": "Open in Captain Deck"
+  },
+  "inspector": {
+    "title": "Crew Inspector",
+    "not_found": "This Captain is no longer active.",
+    "mission": "Mission",
+    "rules": "Shared Rules (injected into spawned workers)",
+    "digest": "Live Digest",
+    "save_notes": "Save Notes",
+    "crew_heading": "Crew ({n})",
+    "spawn_heading": "Quick Spawn Worker",
+    "flag_attention": "Flag Needs You",
+    "latest_reply": "Latest report",
+    "steer_placeholder": "Message or steer this worker…"
+  },
+  "dialogs": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "create": "Create",
+    "spawn": "Spawn Worker",
+    "attach": "Attach"
+  },
+  "toast": {
+    "promoted": "Promoted to Captain",
+    "captain_created": "Captain launched",
+    "worker_spawned": "Worker spawned",
+    "worker_attached": "Attached chat to Captain",
+    "worker_detached": "Detached worker from Captain",
+    "message_sent": "Message sent",
+    "workflow_launched": "Workflow launched",
+    "saved": "Saved"
+  }
+}
