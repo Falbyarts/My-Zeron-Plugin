@@ -1,131 +1,119 @@
-# Plugin Zeron buatan Falbyarts
+# My-Zeron-Plugin
 
-Kumpulan plugin **Zeron** yang saya buat sendiri — bukan plugin bawaan Zeron.
+Kumpulan plugin **Zeron** buatan Falbyarts (plugin komunitas, bukan bawaan resmi Zeron).
 
 ![Heatmap-LocLabs di bawah kotak chat New Chat](assets/heatmap-loclabs.png)
 
-Semua plugin di sini gratis, sumbernya terbuka, dan berjalan **di komputer kamu
-sendiri**. Tidak ada data yang dikirim ke server mana pun.
-
-## Daftar plugin
-
-| Plugin | Fungsi | Versi | Panduan |
-| --- | --- | --- | --- |
-| **Heatmap-LocLabs** | Heatmap setahun commit Git di bawah kotak chat New Chat. Arahkan kursor ke satu hari untuk melihat daftar commit hari itu, dan klik tombol refresh di samping jumlah commit untuk membaca ulang folder Git. | 1.3.0 | [Baca panduan](docs/heatmap-loclabs.md) |
+Semua plugin di repository ini gratis, *open-source*, dan berjalan **sepenuhnya di komputer lokal kamu**. Tidak ada riwayat commit atau data project yang dikirim ke server mana pun.
 
 ---
 
-## Cara memasang plugin (untuk pemula)
+## Daftar Plugin
 
-Pilih **salah satu** cara di bawah. Cara 1 paling mudah dan tidak perlu Git.
+| Plugin | Ringkasan | Versi | Rilis & Panduan |
+| --- | --- | --- | --- |
+| **Heatmap-LocLabs** | Menampilkan heatmap commit Git lokal selama setahun terakhir tepat di bawah kotak chat **New Chat**. Arahkan kursor ke kotak berwarna untuk melihat daftar commit hari itu, dan klik ikon **refresh** kecil di samping jumlah commit untuk membaca ulang repo Git kapan saja. | `1.3.1` | [Panduan lengkap](docs/heatmap-loclabs.md) · [Halaman Rilis](https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.3.1) |
 
-### Sebelum mulai
+---
 
-- Zeron sudah terpasang dan sedang terbuka.
+## Cara Memasang Plugin
+
+Sebelum mulai, pastikan:
+- **Zeron** versi terbaru sudah terpasang dan terbuka.
 - Ada koneksi internet untuk mengunduh plugin.
-- Khusus Heatmap-LocLabs: **Git** harus terpasang di komputer.
-  Belum punya? Unduh di <https://git-scm.com/download/win>, lalu install
-  seperti aplikasi biasa (klik Next sampai selesai).
+- Khusus **Heatmap-LocLabs**, **Git** harus sudah terpasang di komputer ([unduh Git untuk Windows](https://git-scm.com/download/win), lalu install seperti biasa).
 
-### Cara 1 — dari link rilis (paling mudah)
+Pilih **salah satu** dari tiga cara di bawah ini sesuai kebutuhanmu.
 
-1. Buka halaman rilis Heatmap-LocLabs:
+### Cara 1 — Lewat Link Rilis GitHub *(Disarankan & Paling Cepat)*
 
-   <https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.3.0>
+Zeron bisa langsung mengambil paket `.zeron-plugin` dari halaman rilis GitHub tanpa perlu mengunduh file secara manual.
 
-2. **Salin alamat halaman itu** dari address bar browser
-   (klik address bar, tekan `Ctrl+C`).
+1. Salin link rilis **Heatmap-LocLabs** berikut:
 
-3. Buka Zeron, lalu klik **ikon gerigi** (Settings).
+   ```text
+   https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.3.1
+   ```
 
-4. Pilih **Plugins**.
+2. Di Zeron, buka **Settings** (ikon gerigi) → **Plugins** → klik **Install…**.
+3. Tempel link tersebut ke kolom **Link**, lalu klik **Install**.
+4. Zeron akan menampilkan daftar izin yang diminta plugin. Periksa sebentar, lalu klik **Allow** / **Izinkan**.
+5. Buka **New Chat** — heatmap akan muncul di bawah kotak chat dan otomatis membaca jumlah commit lokalmu.
 
-5. Klik tombol **Install…**
+---
 
-6. **Tempel** alamat tadi (`Ctrl+V`), lalu klik **Install**.
+### Cara 2 — Lewat File `.zeron-plugin` *(Unduh Manual)*
 
-7. Zeron menampilkan daftar izin yang diminta plugin. Baca sebentar, lalu klik
-   **Allow** / **Izinkan**.
+Cocok jika kamu ingin menyimpan file installer plugin secara lokal atau memasangnya dari folder unduhan.
 
-8. Selesai. Buka **New Chat** — heatmap muncul di bawah kotak chat.
-
-> Jika tombol **Install…** tidak ada, perbarui Zeron ke versi terbaru dulu.
-
-### Cara 2 — dari file `.zeron-plugin`
-
-Cara ini cocok kalau kamu lebih suka mengunduh file langsung.
-
-1. Buka halaman rilis di atas.
-
-2. Di bagian **Assets**, klik file
-   `heatmap-loclabs-1.3.0.zeron-plugin` untuk mengunduh.
-
-3. Buka Zeron → **Settings** → **Plugins** → **Install…**
-
-4. Pilih file yang baru saja diunduh.
-
-5. Klik **Allow** / **Izinkan** saat Zeron bertanya.
-
+1. Buka [halaman rilis Heatmap-LocLabs v1.3.1](https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.3.1).
+2. Di bagian **Assets**, unduh file `heatmap-loclabs-1.3.1.zeron-plugin`.
+   > **Jangan diekstrak.** File `.zeron-plugin` langsung dipasang lewat Zeron, bukan dibuka dengan WinRAR/7-Zip.
+3. Di Zeron, buka **Settings** → **Plugins** → klik **Install…**.
+4. Klik tombol **Choose file…**, lalu pilih file `heatmap-loclabs-1.3.1.zeron-plugin` yang tadi diunduh.
+5. Klik **Allow** / **Izinkan** saat Zeron meminta persetujuan izin.
 6. Buka **New Chat** untuk melihat hasilnya.
 
-> **Jangan diekstrak.** File `.zeron-plugin` dipasang langsung lewat Zeron,
-> bukan dibuka dengan WinRAR atau sejenisnya.
+---
 
-### Cara 3 — langsung dari source code (butuh Git)
+### Cara 3 — Langsung dari Repository GitHub *(Butuh Git, Mendukung Tombol Update)*
 
-Cocok kalau kamu ingin plugin bisa dicek pembaruannya otomatis.
+Cocok jika kamu ingin mengecek dan memasang pembaruan langsung lewat tombol **Update** di Zeron.
 
-Di Zeron → **Settings** → **Plugins** → **Install…**, tempel alamat ini:
+1. Pastikan **Git** sudah terpasang dan bisa dijalankan dari terminal (`git --version`).
+2. Di Zeron, buka **Settings** → **Plugins** → klik **Install…**.
+3. Tempel link folder plugin berikut ke kolom **Link**, lalu klik **Install**:
 
-```text
-https://github.com/Falbyarts/My-Zeron-Plugin/tree/main/plugins/heatmap-loclabs
-```
+   ```text
+   https://github.com/Falbyarts/My-Zeron-Plugin/tree/main/plugins/heatmap-loclabs
+   ```
 
-Cara ini membutuhkan Git yang sudah terpasang dan dikenali Zeron.
+4. Klik **Allow** / **Izinkan** pada jendela izin.
+5. Buka **New Chat** untuk melihat hasilnya.
 
 ---
 
-## Kalau ada masalah
+## Cara Memperbarui & Menghapus Plugin
 
-| Yang terjadi | Yang bisa dilakukan |
+- **Memperbarui dari link rilis / file `.zeron-plugin`:** pasang versi baru dengan Cara 1 atau Cara 2 di atas — Zeron otomatis menimpa dan memperbarui plugin yang sama.
+- **Memperbarui dari link repository (Cara 3):** buka **Settings** → **Plugins** → pilih **Heatmap-LocLabs** → klik **Update** bila tersedia.
+- **Menghapus plugin:** buka **Settings** → **Plugins** → pilih **Heatmap-LocLabs** → klik **Remove** / **Hapus**. File project dan riwayat Git kamu tidak akan tersentuh.
+
+---
+
+## Troubleshooting
+
+| Gejala | Solusi |
 | --- | --- |
-| Tombol **Install…** tidak ditemukan | Perbarui Zeron ke versi terbaru. |
-| Muncul pesan `git_missing` | Install Git dari <https://git-scm.com/download/win>, lalu tutup dan buka lagi Zeron. |
-| Muncul pesan `tampered` atau `other_signer` | Unduh ulang file dari halaman rilis resmi ini. Jangan mengedit isi file plugin. |
-| Heatmap kosong, tidak ada kotak berwarna | Pastikan folder yang kamu buka di Zeron adalah repo Git dan sudah punya commit. |
-| Tertulis “Reading your commits…” terus | Git belum terbaca oleh Zeron. Pastikan Git terpasang, klik tombol **refresh**, atau tunggu plugin mencoba lagi sendiri. Masih terus? Restart Zeron. |
-| Tertulis “Allow Heatmap-LocLabs…” | Plugin belum diizinkan. Buka Settings → Plugins, lalu izinkan plugin itu. |
-| Kartu commit tidak muncul saat kursor diarahkan | Pastikan kamu ada di **New Chat**, lalu arahkan kursor tepat ke kotak hari yang berwarna dan tunggu sebentar. |
+| Tombol **Install…** tidak ditemukan | Perbarui Zeron ke versi terbaru terlebih dahulu. |
+| Muncul error `git_missing` | Pasang Git dari <https://git-scm.com/download/win>, lalu tutup dan buka kembali Zeron. |
+| Muncul error `tampered` atau `other_signer` | Unduh ulang dari halaman rilis resmi repository ini. Jangan mengedit isi file plugin yang sudah ditandatangani. |
+| Heatmap kosong (semua kotak abu-abu) | Pastikan folder project/chat yang terdaftar di Zeron adalah repo Git dan sudah memiliki minimal 1 commit. |
+| Teks *"Reading your commits…"* tidak berubah | Pastikan Git terpasang (`git --version`), lalu klik ikon **refresh** kecil di samping tulisan tersebut. Jika masih gagal, buka ulang Zeron. |
+| Muncul *"Allow Heatmap-LocLabs…"* | Plugin belum diizinkan. Buka **Settings** → **Plugins** → pilih **Heatmap-LocLabs** → klik **Allow**. |
+| Kartu daftar commit tidak muncul saat hover | Pastikan kamu berada di halaman **New Chat**, lalu arahkan kursor tepat ke kotak hari yang berwarna dan diamkan sejenak. |
 
-Masih bermasalah? Buka **Issues** di repository ini dan tuliskan:
-versi Zeron, versi Windows, dan pesan error yang muncul.
+Masih menemukan kendala? Silakan buat **Issue** di repository ini dengan menyertakan versi Zeron, sistem operasi, dan pesan error yang muncul.
 
 ---
 
-## Isi repository
+## Struktur Repository
 
 ```text
-plugins/                 plugin Zeron, satu folder per plugin
-  heatmap-loclabs/       Heatmap-LocLabs 1.3.0 (siap dipasang)
-docs/                    panduan tiap plugin
-assets/                  gambar untuk dokumentasi
+plugins/
+  heatmap-loclabs/       Plugin Heatmap-LocLabs v1.3.1 (sudah ditandatangani & siap dipasang)
+docs/
+  heatmap-loclabs.md     Panduan lengkap penggunaan Heatmap-LocLabs
+  development.md         Catatan alur kerja pemeliharaan plugin
+assets/
+  heatmap-loclabs.png    Pratinjau tampilan plugin
 ```
 
-Setiap folder di `plugins/` adalah satu plugin Zeron yang sudah ditandatangani.
-Jangan mengubah isinya kalau ingin dipasang lewat Zeron.
+> Setiap folder di dalam `plugins/` adalah salinan plugin Zeron yang sudah ditandatangani secara kriptografis. Perubahan pada file di dalamnya akan membuat signature tidak cocok jika tidak ditandatangani ulang oleh Zeron.
 
-Panduan membuat dan merawat plugin (dari dalam Zeron):
-[docs/development.md](docs/development.md).
+---
 
-## Privasi
+## Privasi & Lisensi
 
-- Plugin membaca **hanya folder lokal** yang dipakai chat dan project di
-  komputer ini.
-- Tidak ada commit, nama, email, atau isi file yang dikirim ke internet.
-- Tidak perlu akun GitHub untuk memakai plugin.
-- Kode sumbernya terbuka, jadi siapa pun bisa memeriksanya.
-
-## Lisensi
-
-[MIT](LICENSE) — bebas dipakai, diubah, dan dibagikan dengan tetap mencantumkan
-nama pembuatnya.
+- **100% Lokal:** Plugin hanya membaca riwayat commit Git pada folder project dan chat di komputer kamu sendiri. Tidak butuh login GitHub dan tidak mengirim data ke internet.
+- **Lisensi:** [MIT](LICENSE) — bebas digunakan, dimodifikasi, dan dibagikan dengan tetap mencantumkan atribusi pembuatnya.

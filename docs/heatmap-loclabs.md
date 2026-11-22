@@ -2,210 +2,149 @@
 
 ![Contoh Heatmap-LocLabs di bawah kotak chat New Chat](../assets/heatmap-loclabs.png)
 
-Heatmap-LocLabs menampilkan **satu tahun commit Git** sebagai kotak-kotak kecil
-di bawah kotak chat **New Chat**. Setiap kotak adalah satu hari; makin terang
-warnanya, makin banyak commit di hari itu.
+**Heatmap-LocLabs** menampilkan aktivitas **commit Git lokal selama satu tahun terakhir** dalam bentuk grid kotak harian tepat di bawah kotak chat **New Chat**. Semakin terang warna kotaknya, semakin banyak commit pada hari tersebut.
 
-Arahkan kursor ke kotak hari yang berwarna, dan muncul **kartu berisi daftar
-commit** hari itu: tanggal lengkap, jumlah commit, jam, dan pesan commit-nya.
-Kartu itu menampilkan sampai **10 commit terbaru**; kalau hari itu lebih ramai,
-sisanya diringkas sebagai **+N more** di kaki kartu.
+Saat kursor diarahkan ke kotak hari yang berwarna, muncul **kartu tooltip** berisi tanggal lengkap, jumlah commit, serta hingga **10 commit terbaru** hari itu (lengkap dengan jam dan pesan commit). Jika ada lebih dari 10 commit, sisanya diringkas sebagai **+N more**.
 
-Di samping tulisan jumlah commit ada tombol **refresh** kecil: klik untuk
-membaca folder Git lagi saat itu juga, tanpa menunggu cache 5 menit.
+Di samping tulisan jumlah commit tersedia tombol **refresh** kecil untuk membaca ulang seluruh folder Git saat itu juga dan langsung memperbarui angka, warna grid, serta kartu detail commit tanpa perlu menunggu cache 5 menit atau me-reload interface Zeron.
 
 ---
 
-## Yang perlu disiapkan
+## Persyaratan
 
-1. **Zeron** versi 0.3.7 atau lebih baru.
-2. **Git** terpasang di komputer (Windows, macOS, atau Linux).
-   - Windows: <https://git-scm.com/download/win>
-   - macOS: jalankan `git --version` di Terminal; kalau belum ada, install
-     Xcode Command Line Tools.
-   - Linux: install lewat package manager, misalnya `sudo apt install git`.
-3. Sedikitnya satu folder project yang sudah menjadi **repo Git** dan punya
-   commit.
+1. **Zeron** versi terbaru (0.3.7 atau lebih baru).
+2. **Git** terpasang di komputer:
+   - **Windows:** unduh di <https://git-scm.com/download/win> dan install seperti biasa.
+   - **macOS:** jalankan `git --version` di Terminal (install Xcode Command Line Tools bila diminta).
+   - **Linux:** install lewat package manager, misalnya `sudo apt install git`.
+3. Minimal satu folder project/chat di Zeron yang merupakan **repo Git** dan sudah memiliki commit.
 
-> Plugin ini **tidak** memakai akun GitHub dan **tidak** mengirim data ke
-> internet. Semua dibaca dari folder lokal di komputer ini.
+> Plugin ini **tidak** menggunakan akun GitHub dan **tidak** mengirim data apa pun ke internet. Semua commit dibaca langsung dari folder lokal di komputermu.
 
 ---
 
-## Cara memasang
+## Cara Memasang
 
-### Paling mudah — lewat link rilis
+Pilih salah satu cara berikut:
 
-1. Buka halaman rilis:
+### Cara 1 — Lewat Link Rilis GitHub *(Disarankan)*
 
-   <https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.3.0>
+1. Salin link rilis berikut:
 
-2. Salin alamat halaman itu dari address bar browser.
-3. Buka Zeron → **Settings** (ikon gerigi) → **Plugins** → **Install…**
-4. Tempel alamat tadi, lalu klik **Install**.
-5. Baca izin yang diminta, lalu klik **Allow** / **Izinkan**.
-6. Buka **New Chat**.
+   ```text
+   https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.3.1
+   ```
 
-### Lewat file `.zeron-plugin`
+2. Buka Zeron → **Settings** (ikon gerigi) → **Plugins** → klik **Install…**.
+3. Tempel link di kolom **Link**, lalu klik **Install**.
+4. Baca izin yang diminta, lalu klik **Allow** / **Izinkan**.
+5. Buka **New Chat** — heatmap akan langsung tampil dan otomatis membaca jumlah commit.
 
-1. Di halaman rilis, buka bagian **Assets**.
-2. Unduh `heatmap-loclabs-1.3.0.zeron-plugin`.
-3. Buka Zeron → **Settings** → **Plugins** → **Install…**
-4. Pilih file yang baru diunduh.
-5. Klik **Allow** / **Izinkan**.
-6. Buka **New Chat**.
+### Cara 2 — Lewat File `.zeron-plugin`
 
-### Lewat source code (butuh Git)
+1. Buka [halaman rilis Heatmap-LocLabs v1.3.1](https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.3.1).
+2. Di bagian **Assets**, unduh `heatmap-loclabs-1.3.1.zeron-plugin` *(jangan diekstrak)*.
+3. Buka Zeron → **Settings** → **Plugins** → klik **Install…** → klik **Choose file…**.
+4. Pilih file `heatmap-loclabs-1.3.1.zeron-plugin` yang baru diunduh.
+5. Klik **Allow** / **Izinkan**, lalu buka **New Chat**.
 
-Di **Settings** → **Plugins** → **Install…**, tempel:
+### Cara 3 — Langsung dari Repository GitHub *(Butuh Git)*
 
-```text
-https://github.com/Falbyarts/My-Zeron-Plugin/tree/main/plugins/heatmap-loclabs
-```
+1. Pastikan Git sudah terpasang di komputer.
+2. Di Zeron, buka **Settings** → **Plugins** → klik **Install…**.
+3. Tempel alamat ini ke kolom **Link**, lalu klik **Install**:
+
+   ```text
+   https://github.com/Falbyarts/My-Zeron-Plugin/tree/main/plugins/heatmap-loclabs
+   ```
+
+4. Klik **Allow** / **Izinkan**, lalu buka **New Chat**.
 
 ---
 
-## Cara memakai
+## Cara Memakai
 
 1. Buka **New Chat** di Zeron.
-2. Di bawah kotak chat akan muncul:
-   - tulisan jumlah commit setahun terakhir,
-   - label bulan (Jan, Feb, Mar, …),
-   - label hari (Mon, Wed, Fri),
-   - grid kotak-kotak harian,
-   - keterangan **Less** dan **More**.
-3. Kotak yang lebih terang berarti lebih banyak commit.
-4. **Arahkan kursor** ke kotak hari yang berwarna.
-5. Kartu akan muncul berisi:
-   - tanggal lengkap (contoh: *Saturday, 07 November 2026*),
-   - jumlah commit hari itu,
-   - daftar commit, **terbaru di atas**, masing-masing dengan jam dan pesannya.
-6. Kartu menampilkan sampai **10 commit terbaru** hari itu; kalau lebih, di
-   kakinya tertulis **+N more** (N = commit lain yang tidak muat di kartu).
-7. Untuk membaca folder Git segera setelah commit baru, klik tombol **refresh**
-   kecil di samping tulisan jumlah commit.
+2. Di bawah kotak chat akan tampil:
+   - jumlah commit dalam setahun terakhir beserta tombol **refresh** kecil di sampingnya,
+   - skala warna **Less** sampai **More**,
+   - label bulan (`Jan`, `Feb`, `Mar`, …) dan label hari (`Mon`, `Wed`, `Fri`),
+   - grid kotak harian selama 53 minggu terakhir.
+3. Arahkan kursor ke kotak hari yang berwarna untuk melihat kartu commit hari tersebut:
+   - tanggal lengkap (misalnya *Saturday, 07 November 2026*),
+   - total commit pada hari itu,
+   - daftar hingga **10 commit terbaru** beserta jam dan pesan commit-nya, plus **+N more** bila lebih banyak.
+4. Setelah membuat commit baru, klik tombol **refresh** kecil di samping jumlah commit untuk langsung membaca ulang folder Git dan memperbarui tampilan di tempat.
 
-Service menyimpan sampai **120 commit per hari**; kartu menampilkan 10 terbaru,
-sisanya diringkas **+N more**.
-
-> Heatmap hanya muncul di **New Chat**, bukan di halaman percakapan yang sedang
-> berjalan. Ini supaya tidak mengganggu saat kamu mengetik atau membaca chat.
+> Heatmap hanya tampil di halaman **New Chat** dan otomatis disembunyikan saat kamu masuk ke halaman chat aktif agar ruang baca tetap bersih.
 
 ---
 
-## Data apa yang dihitung?
+## Data yang Dihitung
 
-- Folder yang dibaca adalah folder yang dipakai **chat dan project di Zeron**
-  pada komputer ini.
-- Perintah yang dipakai: `git log --all`, jadi commit dari **semua branch**
-  ikut dihitung.
-- **Semua email** ikut dihitung. Kalau kamu pernah mengganti email Git, commit
-  lama dan baru tetap muncul.
-- Satu commit dihitung satu kali, walaupun folder yang sama muncul di beberapa
-  chat atau project.
-- Jumlah folder maksimal 32, dan tiap hari disimpan maksimal 120 commit untuk
-  daftar di kartu.
-- Hasil disimpan selama **5 menit**. Membuka New Chat lagi setelah itu akan
-  membaca ulang folder Git; selama New Chat terbuka, heatmap juga mengecek
-  sendiri tiap 30 detik dan membaca ulang kalau datanya sudah kedaluwarsa.
-  Tombol **refresh** di samping jumlah commit membaca ulang segera, tanpa
-  menunggu.
+- Membaca folder Git yang terhubung ke **chat dan project di Zeron** pada perangkat ini saja (maksimal 32 folder unik).
+- Menggunakan `git log --all`, sehingga commit dari **semua branch** dan **semua email** kamu ikut terhitung.
+- Setiap commit hanya dihitung **satu kali** berdasarkan hash SHA-nya, meskipun folder yang sama dipakai di beberapa chat atau worktree.
+- Service menyimpan hingga **120 commit per hari** untuk ditampilkan di kartu detail (10 terbaru ditampilkan, sisanya diringkas **+N more**).
+- Hasil pembacaan di-cache selama **5 menit** dan dicek ulang otomatis tiap 30 detik saat halaman New Chat terbuka bila cache kedaluwarsa. Klik **refresh** kapan saja untuk memaksa pembacaan ulang tanpa menunggu cache.
 
-Yang **tidak** dibaca:
-
-- Tidak ada file project yang dibaca — hanya riwayat commit Git.
-- Tidak ada data dari GitHub, server, atau komputer lain.
-- Commit yang dibuat di komputer lain tidak muncul di sini. Heatmap tiap
-  komputer berisi commit komputer itu sendiri.
+Yang **tidak** dilakukan plugin:
+- Tidak membaca isi kode atau file project — hanya metadata riwayat commit Git.
+- Tidak mengakses GitHub, internet, atau perangkat lain.
 
 ---
 
-## Izin yang diminta
+## Izin yang Diminta
 
-Saat memasang, Zeron menampilkan daftar izin. Untuk plugin ini artinya:
-
-| Izin | Kenapa diperlukan |
+| Izin | Kegunaan |
 | --- | --- |
-| `ui.add` | Menggambar heatmap di bawah kotak chat. |
-| `sessions.read` | Mengetahui folder chat dan project yang harus dibaca. |
-| `service` | Menjalankan pembaca commit di latar belakang. |
-| `commands: git` | Menjalankan `git log` di komputer ini. |
+| `ui.add` | Menampilkan heatmap di bawah kotak chat New Chat. |
+| `sessions.read` | Mengetahui daftar folder chat dan project lokal yang perlu dibaca. |
+| `service` | Menjalankan proses pembacaan commit di latar belakang. |
+| `commands: git` | Menjalankan `git log` di perangkat lokal ini. |
 
-Tidak ada izin untuk mengirim pesan, membuka internet, atau mengubah file
-project.
-
----
-
-## Kalau tidak muncul atau error
-
-### Heatmap kosong sama sekali
-
-- Pastikan folder project di Zeron adalah repo Git:
-  buka Terminal di folder itu, lalu jalankan `git status`.
-- Pastikan repo punya commit:
-  `git log --oneline -5`.
-- Kalau folder belum menjadi repo, jalankan `git init`, buat commit pertama,
-  lalu buka New Chat lagi.
-
-### Tertulis “Reading your commits…” terus
-
-- Git mungkin belum terpasang atau belum terbaca Zeron.
-- Buka Terminal, jalankan `git --version`. Kalau muncul error, install Git.
-- Kalau Git baru dipasang, tunggu sebentar: plugin mencoba membaca ulang
-  sendiri saat service sudah siap. Kamu juga bisa klik tombol **refresh**.
-- Masih tertulis terus? **Tutup dan buka lagi Zeron**.
-
-### Tertulis “Allow Heatmap-LocLabs…”
-
-- Plugin ada, tetapi belum diizinkan.
-- Buka **Settings** → **Plugins**, cari **Heatmap-LocLabs**, lalu izinkan
-  (Allow).
-
-### Muncul `git_missing` saat memasang
-
-- Zeron belum menemukan Git. Install Git, lalu restart Zeron.
-
-### Muncul `tampered` atau `other_signer`
-
-- File plugin berubah atau bukan dari sumber resmi.
-- Unduh ulang dari halaman rilis di repository ini, lalu pasang lagi.
-
-### Kartu commit tidak muncul
-
-- Pastikan kamu ada di **New Chat**.
-- Arahkan kursor tepat ke kotak hari yang **berwarna** (bukan kotak kosong).
-- Tunggu sekitar 0,2 detik; kartu muncul setelah kursor berhenti.
+Tidak ada izin jaringan/internet, kirim pesan, atau ubah file.
 
 ---
 
-## Memperbarui plugin
+## Troubleshooting
 
-- **Dipasang dari file:** unduh file versi baru dari halaman rilis, lalu
-  **Settings** → **Plugins** → **Install…** dan pilih file baru. Zeron akan
-  memperbarui plugin yang sama.
-- **Dipasang dari link repo:** buka **Settings** → **Plugins**, pilih
-  Heatmap-LocLabs, lalu klik **Update** (kalau tersedia).
+### Heatmap kosong (tidak ada kotak berwarna)
+- Pastikan folder project di Zeron adalah repo Git (`git status`) dan sudah punya commit (`git log --oneline -5`).
 
-Saat memperbarui, Zeron mungkin meminta izin lagi kalau ada izin baru.
+### Teks “Reading your commits…” tidak kunjung berubah
+- Pastikan Git terpasang dan dikenali di PATH (`git --version`).
+- Klik tombol **refresh** kecil di samping tulisan tersebut.
+- Jika masih berlangsung setelah baru memasang Git, tutup dan buka kembali Zeron.
 
-## Menghapus plugin
+### Muncul “Allow Heatmap-LocLabs…”
+- Plugin belum diizinkan. Buka **Settings** → **Plugins** → pilih **Heatmap-LocLabs** → klik **Allow**.
 
-**Settings** → **Plugins** → pilih **Heatmap-LocLabs** → **Remove** / **Hapus**.
+### Error `git_missing` atau `tampered` / `other_signer`
+- `git_missing`: pasang Git terlebih dahulu lalu restart Zeron.
+- `tampered` / `other_signer`: unduh ulang file `.zeron-plugin` resmi dari halaman Releases tanpa mengedit isinya.
 
-Menghapus plugin juga menghapus data simpanannya. File project dan riwayat Git
-kamu **tidak** terhapus.
+### Kartu commit tidak muncul saat hover
+- Pastikan kamu berada di halaman **New Chat**, lalu arahkan kursor tepat ke kotak yang **berwarna** dan diamkan ~0,2 detik.
 
 ---
 
-## Riwayat versi
+## Memperbarui & Menghapus
 
-- **1.3.0** – tombol refresh di samping jumlah commit; kartu hari kembali
-  menjadi tooltip Zeron yang ringkas dan responsif (10 commit terbaru + N
-  lainnya); warna grid dan legend konsisten di mode terang maupun gelap.
-- **1.2.0** — kartu commit saat kursor diarahkan ke satu hari; tanggal, jumlah,
-  jam, dan pesan commit.
-- **1.1.0** — heatmap setahun di bawah kotak chat New Chat, mengikuti warna
-  accent tema.
+- **Memperbarui (dari rilis / file):** pasang versi terbaru lewat Cara 1 atau Cara 2 — Zeron akan otomatis memperbarui plugin yang ada.
+- **Memperbarui (dari link repo):** buka **Settings** → **Plugins** → pilih **Heatmap-LocLabs** → klik **Update** bila tersedia.
+- **Menghapus:** buka **Settings** → **Plugins** → pilih **Heatmap-LocLabs** → klik **Remove** / **Hapus**. Data cache plugin akan ikut dibersihkan tanpa menghapus file project maupun riwayat Git kamu.
+
+---
+
+## Riwayat Versi
+
+- **1.3.1** — Memperbaiki bug heatmap yang terjebak di *"Reading your commits…"* saat Zeron baru dibuka sampai interface di-reload: jumlah commit, warna grid, dan kartu detail hari kini ter-update otomatis secara reaktif begitu data masuk; memperbaiki tombol **refresh** agar langsung memperbarui tampilan di tempat, menampilkan tooltip, mencegah klik ganda, dan tidak bocor klik di luar New Chat; optimasi build awal di bawah 1 ms.
+- **1.3.0** — Menambahkan tombol refresh di samping jumlah commit; kartu hari kembali menjadi tooltip Zeron yang ringkas dan responsif (10 commit terbaru + N lainnya); warna grid dan legend konsisten di mode terang maupun gelap.
+- **1.2.0** — Kartu commit saat kursor diarahkan ke satu hari (tanggal, jumlah, jam, dan pesan commit).
+- **1.1.0** — Heatmap setahun di bawah kotak chat New Chat, mengikuti warna accent tema.
+
+---
 
 ## Lisensi
 
