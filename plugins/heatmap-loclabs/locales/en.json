@@ -3,7 +3,6 @@
   "label": "{n, plural, one {# commit} other {# commits}} in the past year",
   "day_commits": "{date} · {n, plural, one {# commit} other {# commits}}",
   "less": "Less",
-  "refresh": "Refresh now",
   "more": "More",
   "more_n": "+{n} more",
   "refresh": "Read your commits again now",

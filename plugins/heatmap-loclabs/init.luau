@@ -5,9 +5,10 @@
 -- below its foot, on a new chat only. The commits are this device's own
 -- chats' and projects' folders, read by the plugin's service (`year`), and
 -- each day is a cell in a 53-week grid, Sunday first: no commits in the
--- text's ink, more in the accent the person chose. The canvas asks the
--- theme for its colours as it draws, so the grid and the legend beside it
--- stay one colour in light and in dark.
+-- text's ink, more in the accent the person chose. The header, canvas, and
+-- day overlays all react to the loaded commits, so the count and grid appear
+-- as soon as the service answers, update immediately on refresh, and follow
+-- light and dark themes as they change.
 --
 -- The header's refresh asks the service again at once, past its five-minute
 -- cache, a ring turning in the glyph's place while it waits. A day's card is
@@ -56,6 +57,7 @@ local pending_at = ui.state("heatmap-loclabs.pending_at", 0)
 -- the old load's. Start the next load clean, as Zeron's own modules do, and
 -- let a read's token be shared, so one from an old load is let go.)
 local latest = ui.state("heatmap-loclabs.read", "")
+local revision = ui.state("heatmap-loclabs.rev", 0)
 local LOAD = tostring({})
 do
 	local was = pending:peek()
@@ -185,7 +187,7 @@ local function commit_rows(held: any): { Node }
 		end
 		local subject = one_line(tostring(commit.subject or ""), 90)
 		if subject == "" then
-			subject = zeron.t("untitled")
+			subject = zeron.s("untitled")
 		end
 		table.insert(
 			rows,
@@ -241,108 +243,31 @@ local function day_card(at: number, held: any): Node
 	}
 end
 
--- (A day "YYYY-MM-DD" as the slot it fills in the grid: 0 is the first
--- Sunday, 371 the last Saturday after it.)
+-- (A day "YYYY-MM-DD" as its local noon timestamp, cached across repaints.)
+local day_noons: { [string]: number } = {}
 local function day_slot(start: number, day: string): number?
-	local y, m, d = string.match(day, "^(%d%d%d%d)%-(%d%d)%-(%d%d)$")
-	if not y then
-		return nil
+	local at = day_noons[day]
+	if at == nil then
+		local y, m, d = string.match(day, "^(%d%d%d%d)%-(%d%d)%-(%d%d)$")
+		if not y then
+			return nil
+		end
+		at = os.time({
+			year = tonumber(y) :: number,
+			month = tonumber(m) :: number,
+			day = tonumber(d) :: number,
+			hour = 12,
+			min = 0,
+			sec = 0,
+		} :: any)
+		day_noons[day] = at
 	end
-	local at = os.time({
-		year = tonumber(y) :: number,
-		month = tonumber(m) :: number,
-		day = tonumber(d) :: number,
-		hour = 12,
-		min = 0,
-		sec = 0,
-	} :: any)
 	-- (Rounded: a day across a clock change is an hour off a whole one.)
 	local slot = math.floor((at - start) / 86400 + 0.5)
 	if slot < 0 or slot >= COLUMNS * ROWS then
 		return nil
 	end
 	return slot
-end
-
--- The grid on one canvas: 371 small squares are cheaper drawn than built
--- as nodes. The colours are asked for in the draw, so a theme change repaints
--- the grid in its accent with the legend. Days with commits carry an
--- invisible square over their cell: the pointer rests on it and its card
--- lists the day.
-local function grid(start: number, known: any, home: () -> boolean): Node
-	local days: any = if type(known) == "table" then known.days or {} else {}
-	local marks: { [number]: number } = {}
-	local overlays: { Node } = {}
-	for day, held in days do
-		local slot = day_slot(start, tostring(day))
-		local n = entry_n(held)
-		if slot and n > 0 then
-			marks[slot] = n
-			local column = math.floor(slot / 7)
-			local row = slot % 7
-			local first_at = start + slot * 86400
-			local first = if type(held) == "table" and type(held.commits) == "table" then held.commits[1] else nil
-			if type(first) == "table" and tonumber(first.at) then
-				first_at = tonumber(first.at) :: number
-			end
-			-- Edges open inward, so a card never runs off the window.
-			local align = if column < 6 then "start" elseif column >= COLUMNS - 6 then "end" else "center"
-			table.insert(
-				overlays,
-				ui.div {
-					absolute = true,
-					left = column * (CELL + GAP) - 1,
-					top = row * (CELL + GAP) - 1,
-					w = CELL + 2,
-					h = CELL + 2,
-					pointer_events = function(): string
-						return if home() then "auto" else "none"
-					end,
-					tooltip = day_card(first_at, held),
-					tooltip_placement = { side = "top", align = align, offset = 10 },
-					tooltip_delay = 120,
-				}
-			)
-		end
-	end
-
-	return ui.div {
-		relative = true,
-		w = GRID_W,
-		h = GRID_H,
-		shrink = 0,
-		ui.canvas {
-			w = GRID_W,
-			h = GRID_H,
-			draw = function(c: any)
-				-- (Read here, in the draw: the theme's colours now, and a
-				-- change asks for the canvas again.)
-				ui.theme.current:get()
-				local scheme = scheme_of()
-				local colors: { [number]: any } = {}
-				for level = 0, 4 do
-					colors[level] = ink.canvas({
-						token = if level == 0 then "text" else "accent",
-						alpha = wash(level, scheme),
-					})
-				end
-				for column = 0, COLUMNS - 1 do
-					for row = 0, ROWS - 1 do
-						local level = level_of(marks[column * 7 + row] or 0)
-						c:rect(
-							column * (CELL + GAP),
-							row * (CELL + GAP),
-							CELL,
-							CELL,
-							colors[level],
-							2
-						)
-					end
-				end
-			end,
-		},
-		table.unpack(overlays),
-	}
 end
 
 local month_lengths: { [number]: number } = {}
@@ -366,24 +291,14 @@ local function month_length(year: number, month: number): number
 	return days
 end
 
--- (The labels ask for a month's length a week at a time; the years the grid
--- spans are measured once as the plugin loads, not in a build.)
-do
-	local year = (os.date("*t", grid_start()) :: any).year
-	for y = year, year + 1 do
-		for m = 1, 12 do
-			month_length(y, m)
-		end
+type MonthMark = { name: string, left: number }
+local month_marks_cache: { [number]: { MonthMark } } = {}
+local function month_marks(start: number): { MonthMark }
+	local had = month_marks_cache[start]
+	if had then
+		return had
 	end
-end
-
-local function Heatmap(props: any): Node
-	local known: any = props.data:get() or {}
-	local total: number = tonumber(known.total) or 0
-	local start: number = props.start
-
-	-- One date a week: the label sits where a week holds a month's first day.
-	local months: { Node } = {}
+	local out: { MonthMark } = {}
 	for column = 0, COLUMNS - 1 do
 		local date: any = os.date("*t", start + column * 7 * 86400)
 		local month: number? = nil
@@ -394,19 +309,182 @@ local function Heatmap(props: any): Node
 		end
 		local left = column * (CELL + GAP)
 		if month and left <= GRID_W - 22 then
-			table.insert(
-				months,
-				ui.text {
-					MONTHS[month],
-					absolute = true,
-					left = left,
-					top = 0,
-					text_size = ui.raw(10, "month labels sit in their own 14 points"),
-					line_height = ui.raw(10, "month labels sit in their own 14 points"),
-					color = "$text.tertiary",
-				}
-			)
+			table.insert(out, { name = MONTHS[month], left = left })
 		end
+	end
+	month_marks_cache[start] = out
+	return out
+end
+
+-- (Measure the grid's months once as the plugin loads, not inside a build.)
+do
+	local start = grid_start()
+	local year = (os.date("*t", start) :: any).year
+	for y = year, year + 1 do
+		for m = 1, 12 do
+			month_length(y, m)
+		end
+	end
+	month_marks(start)
+end
+
+-- The grid on one canvas: 371 small squares are cheaper drawn than built
+-- as nodes. The canvas reads both the theme and the loaded commits reactively
+-- so it repaints immediately when commits arrive, on refresh, or on theme
+-- switch. Days with commits carry an invisible hover overlay rebuilt via
+-- `ui.presence` whenever commit data changes, deferred past the initial build
+-- frame so mounting `#chat-composer` stays fast.
+local function grid(start: number, data_state: any, home: () -> boolean, overlays_ready: any): Node
+	local last_key = ""
+	local last_marks: { [number]: number } = {}
+	local function marks_of(known: any, rev: number): { [number]: number }
+		local key = if type(known) == "table" then `{rev}:{known.at or 0}:{known.total or 0}` else "nil"
+		if key == last_key then
+			return last_marks
+		end
+		local out: { [number]: number } = {}
+		local days: any = if type(known) == "table" and type(known.days) == "table" then known.days else nil
+		if days then
+			for day, held in days do
+				local slot = day_slot(start, tostring(day))
+				local n = entry_n(held)
+				if slot and n > 0 then
+					out[slot] = n
+				end
+			end
+		end
+		last_key = key
+		last_marks = out
+		return out
+	end
+
+	return ui.div {
+		relative = true,
+		w = GRID_W,
+		h = GRID_H,
+		shrink = 0,
+		ui.canvas {
+			w = GRID_W,
+			h = GRID_H,
+			draw = function(c: any)
+				-- (Read here, in the draw: both the theme and the commit data
+				-- are reactive, so a theme change or fresh commit data repaints
+				-- the canvas immediately.)
+				ui.theme.current:get()
+				local marks = marks_of(data_state:get(), tonumber(revision:get()) or 0)
+				local scheme = scheme_of()
+				local colors: { [number]: any } = {}
+				for level = 0, 4 do
+					colors[level] = ink.canvas({
+						token = if level == 0 then "text" else "accent",
+						alpha = wash(level, scheme),
+					})
+				end
+				for column = 0, COLUMNS - 1 do
+					for row = 0, ROWS - 1 do
+						local level = level_of(marks[column * 7 + row] or 0)
+						c:rect(
+							column * (CELL + GAP),
+							row * (CELL + GAP),
+							CELL,
+							CELL,
+							colors[level],
+							2
+						)
+					end
+				end
+			end,
+		},
+		ui.presence(function(): string
+			if not overlays_ready:get() or not home() then
+				return "empty"
+			end
+			local known: any = data_state:get()
+			if type(known) ~= "table" or type(known.days) ~= "table" then
+				return "empty"
+			end
+			local rev = tonumber(revision:get()) or 0
+			return `{rev}:{known.at or 0}:{known.total or 0}`
+		end, function(key: string): Node
+			if key == "empty" then
+				return ui.div { pointer_events = "none" }
+			end
+			local known: any = data_state:peek()
+			local days: any = if type(known) == "table" and type(known.days) == "table" then known.days else nil
+			if not days then
+				return ui.div { pointer_events = "none" }
+			end
+			local overlays: { Node } = {}
+			for day, held in days do
+				local slot = day_slot(start, tostring(day))
+				local n = entry_n(held)
+				if slot and n > 0 then
+					local column = math.floor(slot / 7)
+					local row = slot % 7
+					local first_at = start + slot * 86400
+					local first = if type(held) == "table" and type(held.commits) == "table" then held.commits[1] else nil
+					if type(first) == "table" and tonumber(first.at) then
+						first_at = tonumber(first.at) :: number
+					end
+					-- Edges open inward, so a card never runs off the window.
+					local align = if column < 6 then "start" elseif column >= COLUMNS - 6 then "end" else "center"
+					table.insert(
+						overlays,
+						ui.div {
+							absolute = true,
+							left = column * (CELL + GAP) - 1,
+							top = row * (CELL + GAP) - 1,
+							w = CELL + 2,
+							h = CELL + 2,
+							pointer_events = function(): string
+								return if home() then "auto" else "none"
+							end,
+							tooltip = day_card(first_at, held),
+							tooltip_placement = { side = "top", align = align, offset = 10 },
+							tooltip_delay = 120,
+						}
+					)
+				end
+			end
+			return ui.div {
+				absolute = true,
+				left = 0,
+				top = 0,
+				w = GRID_W,
+				h = GRID_H,
+				pointer_events = "none",
+				table.unpack(overlays),
+			}
+		end, {
+			absolute = true,
+			left = 0,
+			top = 0,
+			w = GRID_W,
+			h = GRID_H,
+			pointer_events = "none",
+		}),
+	}
+end
+
+local function Heatmap(props: any): Node
+	local start: number = props.start
+	local data_state: any = props.data
+
+	-- One date a week: pre-measured positions for month headers.
+	local months: { Node } = {}
+	for _, mark in month_marks(start) do
+		table.insert(
+			months,
+			ui.text {
+				mark.name,
+				absolute = true,
+				left = mark.left,
+				top = 0,
+				text_size = ui.raw(10, "month labels sit in their own 14 points"),
+				line_height = ui.raw(10, "month labels sit in their own 14 points"),
+				color = "$text.tertiary",
+			}
+		)
 	end
 
 	local labels: { Node } = {}
@@ -430,13 +508,32 @@ local function Heatmap(props: any): Node
 		end
 	end
 
-	local header: any
-	if known.error and total == 0 then
-		header = zeron.t("unavailable")
-	elseif known.at == nil then
-		header = zeron.t("loading")
-	else
-		header = zeron.t("count", { n = total })
+	local function header_text(): string
+		local known: any = data_state:get()
+		if type(known) ~= "table" then
+			return zeron.s("loading")
+		end
+		local total: number = tonumber(known.total) or 0
+		if known.error and total == 0 then
+			if
+				known.error == "not_approved"
+				or known.error == "off"
+				or known.error == "not_allowed"
+				or known.error == "not_installed"
+			then
+				return zeron.s("unavailable")
+			end
+			return zeron.s("loading")
+		elseif known.at == nil then
+			return zeron.s("loading")
+		end
+		return zeron.s("count", { n = total })
+	end
+
+	local function a11y_label(): string
+		local known: any = data_state:get()
+		local total: number = if type(known) == "table" then tonumber(known.total) or 0 else 0
+		return zeron.s("label", { n = total })
 	end
 
 	return ui.column {
@@ -444,7 +541,7 @@ local function Heatmap(props: any): Node
 		h_full = true,
 		gap = 4,
 		role = "img",
-		label = zeron.s("label", { n = total }),
+		label = a11y_label,
 		-- The count, its refresh, and the scale the colours stand for.
 		ui.row {
 			w_full = true,
@@ -456,17 +553,23 @@ local function Heatmap(props: any): Node
 				gap = 2,
 				shrink = 0,
 				ui.text {
-					header,
+					header_text,
 					text_size = "$font.size.xs",
 					color = "$text.secondary",
 					shrink = 0,
 				},
 				IconButton {
 					label = zeron.t("refresh"),
+					tooltip = zeron.s("refresh"),
 					size = "sm",
 					tone = "quiet",
 					tooltip_side = "bottom",
-					pointer_events = "auto",
+					pointer_events = function(): string
+						return if props.home() then "auto" else "none"
+					end,
+					disabled = function(): boolean
+						return pending:get()
+					end,
 					on_click = function()
 						props.refresh()
 					end,
@@ -518,7 +621,7 @@ local function Heatmap(props: any): Node
 			h = GRID_H,
 			gap = 6,
 			ui.column { w = LABELS_W, h = GRID_H, gap = GAP, shrink = 0, table.unpack(labels) },
-			grid(start, known, props.home),
+			grid(start, data_state, props.home, props.overlays_ready),
 		},
 	}
 end
@@ -529,20 +632,27 @@ zeron.place {
 		local start = grid_start()
 		local since = day_of(start)
 		local route = zeron.live("route")
+		local overlays_ready = ui.use_state(false)
 		local function home(): boolean
 			local where = route()
 			return type(where) == "table" and where.name == "home"
 		end
 
-		-- (`force`: the refresh never waits on a read already out. A newer
-		-- read's answer is the one shown; an older one is let go, even one
+		-- (Defer building day hover cards by one tick so initial `#chat-composer`
+		-- placement stays fast while the canvas and header appear on frame 1.)
+		ui.after(0, function()
+			overlays_ready:set(true)
+		end)
+
+		-- (`force`: bypasses the service's 5-minute cache to re-read git right
+		-- away. A newer read's answer wins; an older one is dropped, even one
 		-- from before a reload.)
 		local reads = 0
 		local function load(force: boolean)
-			-- (A read that never answered is let go too, so the grid can't
-			-- wait on one forever.)
+			-- (Prevent overlapping reads while one is already in flight, while
+			-- still letting a stalled read expire after its timeout.)
 			local waited = os.time() - (tonumber(pending_at:peek()) or 0)
-			if pending:peek() and not force and waited < 60 then
+			if pending:peek() and waited < 30 then
 				return
 			end
 			reads += 1
@@ -552,11 +662,13 @@ zeron.place {
 			pending_at:set(os.time())
 			zeron.service():call("year", { since = since, force = force }, { timeout = 30 }):after(
 				function(value: any)
-					if latest:get() ~= mine then
+					if latest:peek() ~= mine then
 						return
 					end
 					pending:set(false)
+					pending_at:set(0)
 					value = if type(value) == "table" then value else {}
+					revision:set((tonumber(revision:peek()) or 0) + 1)
 					data:set({
 						at = os.time(),
 						since = since,
@@ -565,15 +677,33 @@ zeron.place {
 					})
 				end,
 				function(err: any)
-					if latest:get() ~= mine then
+					if latest:peek() ~= mine then
 						return
 					end
 					pending:set(false)
+					pending_at:set(0)
+					local reason = zeron.reason(err)
 					local had: any = table.clone(data:peek() or {})
 					had.at = os.time()
 					had.since = since
-					had.error = zeron.reason(err)
+					had.error = reason
+					revision:set((tonumber(revision:peek()) or 0) + 1)
 					data:set(had)
+					-- (If the service was still starting up on cold launch, retry
+					-- shortly instead of waiting 30 seconds.)
+					if
+						(tonumber(had.total) or 0) == 0
+						and reason ~= "not_approved"
+						and reason ~= "off"
+						and reason ~= "not_allowed"
+						and reason ~= "not_installed"
+					then
+						ui.after(3000, function()
+							if home() and not pending:peek() then
+								load(false)
+							end
+						end)
+					end
 				end
 			)
 		end
@@ -615,7 +745,7 @@ zeron.place {
 			w = WIDTH,
 			h = HEIGHT,
 			-- Informational: it takes no click from the page; only its days
-			-- answer the pointer, and only on a new chat.
+			-- and refresh button answer the pointer, and only on a new chat.
 			pointer_events = "none",
 			opacity = function(): number
 				return if home() then 1 else 0
@@ -624,6 +754,7 @@ zeron.place {
 				data = data,
 				start = start,
 				home = home,
+				overlays_ready = overlays_ready,
 				refresh = function()
 					load(true)
 				end,
