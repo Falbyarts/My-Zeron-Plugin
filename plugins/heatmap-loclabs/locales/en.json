@@ -5,6 +5,7 @@
   "less": "Less",
   "more": "More",
   "more_n": "+{n} more",
+  "show_less": "Show less",
   "refresh": "Read your commits again now",
   "empty": "No commits this day",
   "untitled": "(no message)",

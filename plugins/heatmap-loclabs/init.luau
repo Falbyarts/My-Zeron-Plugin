@@ -15,7 +15,6 @@
 -- and turns inward at the window's edge, listing the day's commits.
 
 local zeron = require("./zeron")("heatmap-loclabs")
-local ink = require("@ds/visual_ink")
 local HoverCard = require("@ds/hover_card")
 local Icon = require("@ds/icon")
 local status = require("@ds/status")
@@ -43,7 +42,7 @@ local CARD_W = 340
 -- its paper, and its empty cells a little more still to show at all.
 local WASH = {
 	dark = { empty = 0.08, levels = { 0.28, 0.48, 0.72, 1 } },
-	light = { empty = 0.18, levels = { 0.32, 0.54, 0.76, 1 } },
+	light = { empty = 0.11, levels = { 0.28, 0.50, 0.74, 1 } },
 }
 local DAYS = { "", "Mon", "", "Wed", "", "Fri", "" }
 local MONTHS = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" }
@@ -223,69 +222,154 @@ local function entry_commits(held: any): { any }
 	return {}
 end
 
-local function commit_rows(held: any): { Node }
-	local rows: { Node } = {}
+local function commit_row(commit: any): Node
+	local subject = one_line(tostring(if type(commit) == "table" then commit.subject or "" else ""), 90)
+	if subject == "" then
+		subject = zeron.s("untitled")
+	end
+	local at_num = if type(commit) == "table" then tonumber(commit.at) or 0 else 0
+	return ui.text {
+		`{os.date("%H:%M", at_num)}  {subject}`,
+		weight = "$font.weight.medium",
+		text_size = "$font.size.sm",
+		line_height = "$font.line.sm",
+		color = "$text.primary",
+	}
+end
+
+local function card_content(c: any, card_expanded: any, card_offset: any): Node
+	local held = c.held
+	local n = entry_n(held)
 	local commits = entry_commits(held)
-	for index, commit in commits do
-		if index > MAX_LISTED then
-			break
-		end
-		local subject = one_line(tostring(commit.subject or ""), 90)
-		if subject == "" then
-			subject = zeron.s("untitled")
-		end
-		table.insert(
-			rows,
-			ui.text {
-				`{os.date("%H:%M", tonumber(commit.at) or 0)}  {subject}`,
-				weight = "$font.weight.medium",
-				text_size = "$font.size.sm",
-				line_height = "$font.line.sm",
-				color = "$text.primary",
-			}
-		)
-	end
-	local n = if type(held) == "table" then tonumber(held.n) or #commits else tonumber(held) or 0
-	local extra = n - #rows
-	if extra > 0 then
-		table.insert(
-			rows,
-			ui.text {
-				zeron.t("more_n", { n = extra }),
-				text_size = "$font.size.xs",
-				line_height = "$font.line.xs",
-				color = "$text.tertiary",
-			}
-		)
-	end
-	if #rows == 0 then
-		table.insert(
-			rows,
+	local expanded = card_expanded:peek()
+
+	local header = ui.text {
+		zeron.t("day_commits", { date = day_label(c.at), n = n }),
+		w_full = true,
+		text_size = "$font.size.xs",
+		line_height = "$font.line.xs",
+		color = "$text.secondary",
+	}
+
+	if #commits == 0 then
+		return ui.column {
+			w_full = true,
+			gap = "$space.1",
+			header,
 			ui.text {
 				zeron.t("empty"),
 				text_size = "$font.size.sm",
 				color = "$text.tertiary",
-			}
-		)
+			},
+		}
 	end
-	return rows
-end
 
-local function day_card(at: number, held: any): Node
-	local n = entry_n(held)
-	return HoverCard.Card {
-		w = CARD_W,
-		p = "$space.3",
-		gap = "$space.1",
-		ui.text {
-			zeron.t("day_commits", { date = day_label(at), n = n }),
+	if not expanded then
+		local rows: { Node } = { header }
+		local limit = math.min(#commits, MAX_LISTED)
+		for i = 1, limit do
+			table.insert(rows, commit_row(commits[i]))
+		end
+
+		local extra = n - limit
+		if extra > 0 then
+			if #commits > limit then
+				table.insert(
+					rows,
+					ui.div {
+						cursor = "pointer",
+						role = "button",
+						rounded = "$radius.sm",
+						px = 4,
+						py = 2,
+						mx = -4,
+						color = "$text.secondary",
+						hover = { bg = "$hover", color = "$text.primary" },
+						on_click = function()
+							card_expanded:set(true)
+						end,
+						ui.text {
+							zeron.t("more_n", { n = extra }),
+							text_size = "$font.size.xs",
+							weight = "$font.weight.medium",
+						},
+					}
+				)
+			else
+				table.insert(
+					rows,
+					ui.text {
+						zeron.t("more_n", { n = extra }),
+						text_size = "$font.size.xs",
+						line_height = "$font.line.xs",
+						color = "$text.tertiary",
+					}
+				)
+			end
+		end
+
+		return ui.column {
 			w_full = true,
-			text_size = "$font.size.xs",
-			line_height = "$font.line.xs",
+			gap = "$space.1",
+			table.unpack(rows),
+		}
+	else
+		local scroll_rows: { Node } = {}
+		for _, commit in commits do
+			table.insert(scroll_rows, commit_row(commit))
+		end
+
+		if n > #commits then
+			table.insert(
+				scroll_rows,
+				ui.text {
+					zeron.t("more_n", { n = n - #commits }),
+					text_size = "$font.size.xs",
+					line_height = "$font.line.xs",
+					color = "$text.tertiary",
+				}
+			)
+		end
+
+		local show_less_btn = ui.div {
+			cursor = "pointer",
+			role = "button",
+			rounded = "$radius.sm",
+			px = 4,
+			py = 2,
+			mx = -4,
 			color = "$text.secondary",
-		},
-		table.unpack(commit_rows(held)),
-	}
+			hover = { bg = "$hover", color = "$text.primary" },
+			on_click = function()
+				card_expanded:set(false)
+				card_offset:set(0)
+			end,
+			ui.text {
+				zeron.t("show_less"),
+				text_size = "$font.size.xs",
+				weight = "$font.weight.medium",
+			},
+		}
+
+		return ui.column {
+			w_full = true,
+			gap = "$space.1",
+			header,
+			ui.scroll {
+				w_full = true,
+				max_h = 260,
+				offset = card_offset,
+				fade = { 10, 10 },
+				fade_overflow = true,
+				ui.column {
+					w_full = true,
+					gap = "$space.1",
+					table.unpack(scroll_rows),
+				},
+			},
+			show_less_btn,
+		}
+	end
 end
 
 -- (A day "YYYY-MM-DD" as its local noon timestamp, cached across repaints.)
@@ -380,7 +464,14 @@ end
 -- carry an invisible hover overlay rebuilt via `ui.presence` whenever commit
 -- data changes, deferred past the initial build frame so mounting
 -- `#chat-composer` stays fast.
-local function grid(start: number, data_state: any, visible: () -> boolean, overlays_ready: any): Node
+local function grid(
+	start: number,
+	data_state: any,
+	visible: () -> boolean,
+	overlays_ready: any,
+	on_cell_enter: (day: string, first_at: number, held: any, column: number, row: number) -> (),
+	on_cell_leave: () -> ()
+): Node
 	local last_key = ""
 	local last_marks: { [number]: number } = {}
 	local function marks_of(known: any, rev: number, target_key: string): { [number]: number }
@@ -412,38 +503,42 @@ local function grid(start: number, data_state: any, visible: () -> boolean, over
 		w = GRID_W,
 		h = GRID_H,
 		shrink = 0,
-		ui.canvas {
+		ui.div {
+			absolute = true,
+			left = 0,
+			top = 0,
 			w = GRID_W,
 			h = GRID_H,
-			draw = function(c: any)
-				-- (Read here, in the draw: theme, target, and commit data are
-				-- reactive, so a theme/scope/project change or fresh commits
-				-- repaint the canvas immediately.)
-				ui.theme.current:get()
-				local target = target_of(true)
-				local marks = marks_of(data_state:get(), tonumber(revision:get()) or 0, target.key)
-				local scheme = scheme_of()
-				local colors: { [number]: any } = {}
-				for level = 0, 4 do
-					colors[level] = ink.canvas({
-						token = if level == 0 then "text" else "accent",
-						alpha = wash(level, scheme),
-					})
-				end
-				for column = 0, COLUMNS - 1 do
-					for row = 0, ROWS - 1 do
-						local level = level_of(marks[column * 7 + row] or 0)
-						c:rect(
-							column * (CELL + GAP),
-							row * (CELL + GAP),
-							CELL,
-							CELL,
-							colors[level],
-							2
-						)
-					end
-				end
+			pointer_events = "none",
+			opacity = function(): number
+				return wash(0, scheme_of())
 			end,
+			ui.canvas {
+				w = GRID_W,
+				h = GRID_H,
+				draw = function(c: any)
+					ui.theme.current:get()
+					local ready = overlays_ready:get()
+					local shown = visible()
+					local marks = if ready and shown
+						then marks_of(data_state:get(), tonumber(revision:get()) or 0, target_of(true).key)
+						else nil
+					for column = 0, COLUMNS - 1 do
+						for row = 0, ROWS - 1 do
+							if (if marks then (marks[column * 7 + row] or 0) else 0) <= 0 then
+								c:rect(
+									column * (CELL + GAP),
+									row * (CELL + GAP),
+									CELL,
+									CELL,
+									"$text.primary",
+									2
+								)
+							end
+						end
+					end
+				end,
+			},
 		},
 		ui.presence(function(): string
 			if not overlays_ready:get() or not visible() then
@@ -477,8 +572,8 @@ local function grid(start: number, data_state: any, visible: () -> boolean, over
 					if type(first) == "table" and tonumber(first.at) then
 						first_at = tonumber(first.at) :: number
 					end
-					-- Edges open inward, so a card never runs off the window.
-					local align = if column < 6 then "start" elseif column >= COLUMNS - 6 then "end" else "center"
+					local day_str = tostring(day)
+					local level = level_of(n)
 					table.insert(
 						overlays,
 						ui.div {
@@ -490,10 +585,30 @@ local function grid(start: number, data_state: any, visible: () -> boolean, over
 							pointer_events = function(): string
 								return if visible() then "auto" else "none"
 							end,
-							tooltip = day_card(first_at, held),
-							tooltip_placement = { side = "top", align = align, offset = 10 },
-							tooltip_delay = 120,
-						}
+							on_hover = function(inside: boolean)
+								if not visible() then
+									return
+								end
+								if inside then
+									on_cell_enter(day_str, first_at, held, column, row)
+								else
+									on_cell_leave()
+								end
+							end,
+						ui.div {
+							absolute = true,
+							left = 1,
+							top = 1,
+							w = CELL,
+							h = CELL,
+							rounded = ui.raw(2, "a heatmap cell's corner, at GitHub's scale"),
+							bg = "$accent",
+							opacity = function(): number
+								return wash(level, scheme_of())
+							end,
+							pointer_events = "none",
+						},
+					}
 					)
 				end
 			end
@@ -683,7 +798,7 @@ local function Heatmap(props: any): Node
 			h = GRID_H,
 			gap = 6,
 			ui.column { w = LABELS_W, h = GRID_H, gap = GAP, shrink = 0, table.unpack(labels) },
-			grid(start, data_state, props.visible, props.overlays_ready),
+			grid(start, data_state, props.visible, props.overlays_ready, props.on_cell_enter, props.on_cell_leave),
 		},
 	}
 end
@@ -695,6 +810,76 @@ zeron.place {
 		local since = day_of(start)
 		local route = zeron.live("route")
 		local overlays_ready = ui.use_state(false)
+
+		local card = ui.use_state(nil :: any)
+		local card_open = ui.use_state(false)
+		local card_expanded = ui.use_state(false)
+		local card_offset = ui.use_state(0)
+
+		local cell_hovered = false
+		local card_hovered = false
+		local close_gen = 0
+		local open_gen = 0
+
+		local function close_card()
+			close_gen += 1
+			open_gen += 1
+			cell_hovered = false
+			card_hovered = false
+			if card_open:peek() then
+				card_open:set(false)
+			end
+			card_expanded:set(false)
+			card_offset:set(0)
+			card:set(nil)
+		end
+
+		local function close_soon()
+			close_gen += 1
+			local gen = close_gen
+			ui.after(260, function()
+				if gen == close_gen and not cell_hovered and not card_hovered then
+					card_open:set(false)
+					card_expanded:set(false)
+					card_offset:set(0)
+					card:set(nil)
+				end
+			end)
+		end
+
+		local function on_cell_enter(day: string, first_at: number, held: any, column: number, row: number)
+			close_gen += 1
+			cell_hovered = true
+			local prev: any = card:peek()
+			if type(prev) ~= "table" or prev.day ~= day then
+				card_expanded:set(false)
+				card_offset:set(0)
+			end
+			card:set({
+				day = day,
+				at = first_at,
+				held = held,
+				column = column,
+				row = row,
+			})
+			if card_open:peek() then
+				return
+			end
+			open_gen += 1
+			local gen = open_gen
+			ui.after(80, function()
+				if gen == open_gen and cell_hovered then
+					card_open:set(true)
+				end
+			end)
+		end
+
+		local function on_cell_leave()
+			open_gen += 1
+			cell_hovered = false
+			close_soon()
+		end
+
 		local function home(): boolean
 			local where = route()
 			return type(where) == "table" and where.name == "home"
@@ -703,7 +888,7 @@ zeron.place {
 			return home() and show_heatmap:get() ~= false
 		end
 
-		-- (Defer building day hover cards by one tick so initial `#chat-composer`
+		-- (Defer building day hover overlays by one tick so initial `#chat-composer`
 		-- placement stays fast while the canvas and header appear on frame 1.)
 		ui.after(0, function()
 			overlays_ready:set(true)
@@ -743,13 +928,24 @@ zeron.place {
 						pending_key:set("")
 						value = if type(value) == "table" then value else {}
 						revision:set((tonumber(revision:peek()) or 0) + 1)
+						local days_map = value.days or {}
 						data:set({
 							at = os.time(),
 							since = since,
 							target_key = target.key,
-							days = value.days or {},
+							days = days_map,
 							total = value.total or 0,
 						})
+						local current_card = card:peek()
+						if current_card then
+							local fresh_held = days_map[current_card.day]
+							if not fresh_held or entry_n(fresh_held) == 0 then
+								close_card()
+							else
+								current_card.held = fresh_held
+								card:set(table.clone(current_card))
+							end
+						end
 					end,
 					function(err: any)
 						if latest:peek() ~= mine then
@@ -758,6 +954,7 @@ zeron.place {
 						pending:set(false)
 						pending_at:set(0)
 						pending_key:set("")
+						close_card()
 						local reason = zeron.reason(err)
 						local prev: any = data:peek()
 						local had: any = if type(prev) == "table" and prev.target_key == target.key
@@ -818,6 +1015,7 @@ zeron.place {
 				return
 			end
 			if key == "show_heatmap" and value == false then
+				close_card()
 				return
 			end
 			ui.after(0, function()
@@ -828,11 +1026,13 @@ zeron.place {
 		end
 		on_setting_changed = handle_setting
 		pcall(ui.on_cleanup, function()
+			close_card()
 			if on_setting_changed == handle_setting then
 				on_setting_changed = nil
 			end
 		end)
 
+		local last_target_key = ""
 		ui.effect(function()
 			local where = route()
 			local win = zeron.window()
@@ -843,11 +1043,18 @@ zeron.place {
 				target_of(true)
 			end
 			if type(where) ~= "table" or where.name ~= "home" then
+				close_card()
 				return
 			end
 			if not win.shown or shown_setting == false then
+				close_card()
 				return
 			end
+			local target = target_of(true)
+			if last_target_key ~= "" and last_target_key ~= target.key then
+				close_card()
+			end
+			last_target_key = target.key
 			if due() then
 				load(false)
 			end
@@ -860,6 +1067,70 @@ zeron.place {
 			end)
 		end)
 
+		local function card_left(column: number): number
+			local cell_left = LABELS_W + 6 + column * (CELL + GAP)
+			if column < 6 then
+				return math.max(0, cell_left)
+			elseif column >= COLUMNS - 6 then
+				return math.min(WIDTH - CARD_W, cell_left + CELL - CARD_W)
+			end
+			return math.clamp(cell_left + CELL / 2 - CARD_W / 2, 0, WIDTH - CARD_W)
+		end
+
+		local function card_bottom(row: number): number
+			return HEIGHT - (GRID_TOP + row * (CELL + GAP)) + 10
+		end
+
+		local function DayCard(): Node
+			return ui.show(
+				function(): boolean
+					return visible() and card_open:get() and card:get() ~= nil
+				end,
+				HoverCard.Card {
+					absolute = true,
+					left = function(): number
+						local c = card:get()
+						return if c then card_left(c.column) else 0
+					end,
+					bottom = function(): number
+						local c = card:get()
+						return if c then card_bottom(c.row) else 0
+					end,
+					w = CARD_W,
+					p = "$space.3",
+					gap = "$space.1",
+					pointer_events = "auto",
+					on_hover = function(inside: boolean)
+						if inside then
+							card_hovered = true
+							close_gen += 1
+						else
+							card_hovered = false
+							close_soon()
+						end
+					end,
+					ui.presence(function(): string
+						local c = card:get()
+						if not c then
+							return "empty"
+						end
+						local n = entry_n(c.held)
+						local exp = card_expanded:get()
+						return `{c.day}:{n}:{exp}`
+					end, function(key: string): Node
+						if key == "empty" then
+							return ui.div {}
+						end
+						local c = card:peek()
+						if not c then
+							return ui.div {}
+						end
+						return card_content(c, card_expanded, card_offset)
+					end, { w_full = true }),
+				}
+			)
+		end
+
 		return ui.div {
 			id = "heatmap-loclabs",
 			absolute = true,
@@ -867,6 +1138,7 @@ zeron.place {
 			bottom = -(HEIGHT + BELOW),
 			w = WIDTH,
 			h = HEIGHT,
+			overflow = "visible",
 			-- Informational: it takes no click from the page; only its days
 			-- and refresh button answer the pointer, and only when visible.
 			pointer_events = "none",
@@ -881,7 +1153,10 @@ zeron.place {
 				refresh = function()
 					load(true)
 				end,
+				on_cell_enter = on_cell_enter,
+				on_cell_leave = on_cell_leave,
 			},
+			DayCard(),
 		}
 	end,
 }

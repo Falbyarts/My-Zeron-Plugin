@@ -46,15 +46,15 @@
   ],
   "signature": {
     "files": {
-      "README.md": "1e3a5e138df82bc81f1c6e46aac88e2f04744841df2d100bdfc17c36f3f3647d",
+      "README.md": "271567e4117f6b67d213272d48940b9bc55b7f2624a0f75d4105d1eb3e18e1e7",
       "icon.svg": "12ff85b68819389654101fef4bc4fe1188aaed6e7d10f80957525d088da2c4cf",
-      "init.luau": "cb3c0bd30f7619a74df5c1f522b879bdbd02d4e951bc863b687c99cd0451a3fb",
-      "locales/en.json": "310d89acb3f63d8fe9b7aa32c7728b2201f446ea5201b2eaa8c2411109ce41be",
+      "init.luau": "02cebf8e4a067dbba2f00b3afe15ae3890a65ed98e5c8c99f9669f2521eaeb04",
+      "locales/en.json": "7c2d8c01bb951c0baf43e028c6607a03002ea8cc6a839bfc66db9f26f26debb8",
       "service.luau": "2b7fae62e5b38d2f337b6ba2b0bde809892d18fc8b9ec7e2b17ca291d09c73ed",
       "zeron.luau": "178b79b55566c9643b26181539b8e1348482179a169da98ba384cd66f3f8a483"
     },
     "key": "qe0KcCOqgglmdlcmQdH38lS8wk-P2wEL0lS_5m7L9II",
-    "sig": "Ut0_CPD9lk9AI4apnLBonl95TX-UA14W9MHSG8xI2ZIj-Oat4WMEm9C_f-HBxsNPvoZnmUyE0K3_gkDUIDMwDw"
+    "sig": "61BqgHGxCFZcIQxWq2kCoEJM1EQ-GB7L1pTpsqj7t12k_FuQBrD8a5vu_ab74t-lg7Y2LQYbq0B-F_wtXfLxCg"
   },
-  "version": "1.4.0"
+  "version": "1.4.1"
 }
