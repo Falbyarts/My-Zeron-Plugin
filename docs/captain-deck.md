@@ -55,7 +55,7 @@ Pilih salah satu cara berikut:
 1. Salin link rilis berikut:
 
    ```text
-   https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/captain-deck-v1.0.1
+   https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/captain-deck-v1.0.1
    ```
 
 2. Buka Zeron → **Settings** (ikon gerigi) → **Plugins** → klik **Install…**.
@@ -65,7 +65,7 @@ Pilih salah satu cara berikut:
 
 ### Cara 2 — Lewat File `.zeron-plugin`
 
-1. Buka [halaman rilis Captain Deck v1.0.1](https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/captain-deck-v1.0.1).
+1. Buka [halaman rilis Captain Deck v1.0.1](https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/captain-deck-v1.0.1).
 2. Di bagian **Assets**, unduh `captain-deck-1.0.1.zeron-plugin` *(jangan diekstrak)*.
 3. Buka Zeron → **Settings** → **Plugins** → klik **Install…** → klik **Choose file…**.
 4. Pilih file `captain-deck-1.0.1.zeron-plugin`.
@@ -78,7 +78,7 @@ Pilih salah satu cara berikut:
 3. Tempel alamat berikut ke kolom **Link**, lalu klik **Install**:
 
    ```text
-   https://github.com/Falbyarts/My-Zeron-Plugin/tree/main/plugins/captain-deck
+   https://github.com/Falbyarts/My-ZgX-Plugin/tree/main/plugins/captain-deck
    ```
 
 4. Klik **Allow** / **Izinkan**.

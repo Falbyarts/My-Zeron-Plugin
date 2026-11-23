@@ -1,4 +1,4 @@
-# My-Zeron-Plugin
+# My-ZgX-Plugin
 
 Kumpulan plugin **Zeron** buatan Falbyarts (plugin komunitas, bukan bawaan resmi Zeron).
 
@@ -12,8 +12,8 @@ Semua plugin di repository ini gratis, *open-source*, dan berjalan **sepenuhnya 
 
 | Plugin | Ringkasan | Versi | Rilis & Panduan |
 | --- | --- | --- | --- |
-| **Captain Deck** | Dek kontrol orkestrasi multi-agent *native* Zeron yang **100% harness-agnostic** (Pi, Claude Code, Codex, OpenCode, Antigravity, Hermes, Cursor, ACP). Dilengkapi **Captains & Crew Trees**, **Attention Digest (*Needs You*)**, **Cross-Harness Workflows** (`Build → Review`, `Fan-Out Swarm`, `Compare`), **Crew Inspector** di side panel, dan 6 native agent tools. | `1.0.1` | [Panduan lengkap](docs/captain-deck.md) · [Halaman Rilis](https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/captain-deck-v1.0.1) |
-| **Heatmap-LocLabs** | Menampilkan heatmap commit Git lokal selama setahun terakhir tepat di bawah kotak chat **New Chat**. Arahkan kursor ke kotak berwarna untuk melihat daftar commit hari itu, dan klik ikon **refresh** kecil di samping jumlah commit untuk membaca ulang repo Git kapan saja. | `1.3.1` | [Panduan lengkap](docs/heatmap-loclabs.md) · [Halaman Rilis](https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.3.1) |
+| **Captain Deck** | Dek kontrol orkestrasi multi-agent *native* Zeron yang **100% harness-agnostic** (Pi, Claude Code, Codex, OpenCode, Antigravity, Hermes, Cursor, ACP). Dilengkapi **Captains & Crew Trees**, **Attention Digest (*Needs You*)**, **Cross-Harness Workflows** (`Build → Review`, `Fan-Out Swarm`, `Compare`), **Crew Inspector** di side panel, dan 6 native agent tools. | `1.0.1` | [Panduan lengkap](docs/captain-deck.md) · [Halaman Rilis](https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/captain-deck-v1.0.1) |
+| **Heatmap-LocLabs** | Menampilkan heatmap commit Git lokal selama setahun terakhir tepat di bawah kotak chat **New Chat**. Arahkan kursor ke kotak berwarna untuk melihat daftar commit hari itu, dan klik ikon **refresh** kecil di samping jumlah commit untuk membaca ulang repo Git kapan saja. | `1.3.1` | [Panduan lengkap](docs/heatmap-loclabs.md) · [Halaman Rilis](https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/heatmap-loclabs-v1.3.1) |
 
 ---
 
@@ -33,7 +33,7 @@ Zeron bisa langsung mengambil paket `.zeron-plugin` dari halaman rilis GitHub ta
 1. Salin link rilis **Heatmap-LocLabs** berikut:
 
    ```text
-   https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.3.1
+   https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/heatmap-loclabs-v1.3.1
    ```
 
 2. Di Zeron, buka **Settings** (ikon gerigi) → **Plugins** → klik **Install…**.
@@ -47,7 +47,7 @@ Zeron bisa langsung mengambil paket `.zeron-plugin` dari halaman rilis GitHub ta
 
 Cocok jika kamu ingin menyimpan file installer plugin secara lokal atau memasangnya dari folder unduhan.
 
-1. Buka [halaman rilis Heatmap-LocLabs v1.3.1](https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.3.1).
+1. Buka [halaman rilis Heatmap-LocLabs v1.3.1](https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/heatmap-loclabs-v1.3.1).
 2. Di bagian **Assets**, unduh file `heatmap-loclabs-1.3.1.zeron-plugin`.
    > **Jangan diekstrak.** File `.zeron-plugin` langsung dipasang lewat Zeron, bukan dibuka dengan WinRAR/7-Zip.
 3. Di Zeron, buka **Settings** → **Plugins** → klik **Install…**.
@@ -66,7 +66,7 @@ Cocok jika kamu ingin mengecek dan memasang pembaruan langsung lewat tombol **Up
 3. Tempel link folder plugin berikut ke kolom **Link**, lalu klik **Install**:
 
    ```text
-   https://github.com/Falbyarts/My-Zeron-Plugin/tree/main/plugins/heatmap-loclabs
+   https://github.com/Falbyarts/My-ZgX-Plugin/tree/main/plugins/heatmap-loclabs
    ```
 
 4. Klik **Allow** / **Izinkan** pada jendela izin.

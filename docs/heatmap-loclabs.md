@@ -32,7 +32,7 @@ Pilih salah satu cara berikut:
 1. Salin link rilis berikut:
 
    ```text
-   https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.3.1
+   https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/heatmap-loclabs-v1.3.1
    ```
 
 2. Buka Zeron → **Settings** (ikon gerigi) → **Plugins** → klik **Install…**.
@@ -42,7 +42,7 @@ Pilih salah satu cara berikut:
 
 ### Cara 2 — Lewat File `.zeron-plugin`
 
-1. Buka [halaman rilis Heatmap-LocLabs v1.3.1](https://github.com/Falbyarts/My-Zeron-Plugin/releases/tag/heatmap-loclabs-v1.3.1).
+1. Buka [halaman rilis Heatmap-LocLabs v1.3.1](https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/heatmap-loclabs-v1.3.1).
 2. Di bagian **Assets**, unduh `heatmap-loclabs-1.3.1.zeron-plugin` *(jangan diekstrak)*.
 3. Buka Zeron → **Settings** → **Plugins** → klik **Install…** → klik **Choose file…**.
 4. Pilih file `heatmap-loclabs-1.3.1.zeron-plugin` yang baru diunduh.
@@ -55,7 +55,7 @@ Pilih salah satu cara berikut:
 3. Tempel alamat ini ke kolom **Link**, lalu klik **Install**:
 
    ```text
-   https://github.com/Falbyarts/My-Zeron-Plugin/tree/main/plugins/heatmap-loclabs
+   https://github.com/Falbyarts/My-ZgX-Plugin/tree/main/plugins/heatmap-loclabs
    ```
 
 4. Klik **Allow** / **Izinkan**, lalu buka **New Chat**.

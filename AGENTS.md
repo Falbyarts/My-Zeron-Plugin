@@ -1,7 +1,7 @@
-# AGENTS.md — My-Zeron-Plugin
+# AGENTS.md — My-ZgX-Plugin
 
 This repository is the source of truth for Falbyarts' Zeron plugins, published at
-`github.com/Falbyarts/My-Zeron-Plugin`. Humans install signed `.zeron-plugin` files
+`github.com/Falbyarts/My-ZgX-Plugin`. Humans install signed `.zeron-plugin` files
 from Releases; the repo keeps the signed plugin folders and the docs.
 
 ## Where things are
