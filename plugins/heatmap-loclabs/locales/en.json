@@ -1,6 +1,8 @@
 {
-  "count": "{n, plural, one {# commit} other {# commits}} in the last year",
-  "label": "{n, plural, one {# commit} other {# commits}} in the past year",
+  "count": "{n, plural, one {# commit} other {# commits}} across all folders",
+  "count_project": "{n, plural, one {# commit} other {# commits}} in {project}",
+  "label": "{n, plural, one {# commit} other {# commits}} across all folders in the past year",
+  "label_project": "{n, plural, one {# commit} other {# commits}} in {project} in the past year",
   "day_commits": "{date} · {n, plural, one {# commit} other {# commits}}",
   "less": "Less",
   "more": "More",

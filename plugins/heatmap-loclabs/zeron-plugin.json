@@ -48,13 +48,13 @@
     "files": {
       "README.md": "271567e4117f6b67d213272d48940b9bc55b7f2624a0f75d4105d1eb3e18e1e7",
       "icon.svg": "12ff85b68819389654101fef4bc4fe1188aaed6e7d10f80957525d088da2c4cf",
-      "init.luau": "02cebf8e4a067dbba2f00b3afe15ae3890a65ed98e5c8c99f9669f2521eaeb04",
-      "locales/en.json": "7c2d8c01bb951c0baf43e028c6607a03002ea8cc6a839bfc66db9f26f26debb8",
+      "init.luau": "89f15b4f9e3bb0d4bde6685a2f00f3a7f87a8bfa803b98377623249922ab13bb",
+      "locales/en.json": "bc6810ab6be38add5e5984f20c43eb9d3c192330ab5c762bfb747195043962fc",
       "service.luau": "2b7fae62e5b38d2f337b6ba2b0bde809892d18fc8b9ec7e2b17ca291d09c73ed",
       "zeron.luau": "178b79b55566c9643b26181539b8e1348482179a169da98ba384cd66f3f8a483"
     },
     "key": "qe0KcCOqgglmdlcmQdH38lS8wk-P2wEL0lS_5m7L9II",
-    "sig": "61BqgHGxCFZcIQxWq2kCoEJM1EQ-GB7L1pTpsqj7t12k_FuQBrD8a5vu_ab74t-lg7Y2LQYbq0B-F_wtXfLxCg"
+    "sig": "AqAo2jRdG13SgRn_r0S7URI4gecY1cN5PrftoSi8BdiRVBIGeoE5M--hPQXCP6pxOT618v6-XcvcOHlPl85-DA"
   },
-  "version": "1.4.1"
+  "version": "1.4.2"
 }

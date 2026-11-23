@@ -32,7 +32,7 @@ Pilih salah satu cara berikut:
 1. Salin link rilis berikut:
 
    ```text
-   https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/heatmap-loclabs-v1.4.1
+   https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/heatmap-loclabs-v1.4.2
    ```
 
 2. Buka Zeron → **Settings** (ikon gerigi) → **Plugins** → klik **Install…**.
@@ -42,10 +42,10 @@ Pilih salah satu cara berikut:
 
 ### Cara 2 — Lewat File `.zeron-plugin`
 
-1. Buka [halaman rilis Heatmap-LocLabs v1.4.1](https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/heatmap-loclabs-v1.4.1).
-2. Di bagian **Assets**, unduh `heatmap-loclabs-1.4.1.zeron-plugin` *(jangan diekstrak)*.
+1. Buka [halaman rilis Heatmap-LocLabs v1.4.2](https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/heatmap-loclabs-v1.4.2).
+2. Di bagian **Assets**, unduh `heatmap-loclabs-1.4.2.zeron-plugin` *(jangan diekstrak)*.
 3. Buka Zeron → **Settings** → **Plugins** → klik **Install…** → klik **Choose file…**.
-4. Pilih file `heatmap-loclabs-1.4.1.zeron-plugin` yang baru diunduh.
+4. Pilih file `heatmap-loclabs-1.4.2.zeron-plugin` yang baru diunduh.
 5. Klik **Allow** / **Izinkan**, lalu buka **New Chat**.
 
 ### Cara 3 — Langsung dari Repository GitHub *(Butuh Git)*
@@ -66,10 +66,10 @@ Pilih salah satu cara berikut:
 
 1. Buka **New Chat** di Zeron.
 2. Di bawah kotak chat akan tampil:
-   - jumlah commit dalam setahun terakhir beserta tombol **refresh** kecil di sampingnya,
+   - jumlah commit beserta cakupan aktifnya (`commits across all folders` atau `commits in <nama project>`) dan tombol **refresh** kecil di sampingnya,
    - skala warna **Less** sampai **More**,
    - label bulan (`Jan`, `Feb`, `Mar`, …) dan label hari (`Mon`, `Wed`, `Fri`),
-   - grid kotak harian selama 53 minggu terakhir.
+   - grid kotak harian hingga 53 minggu terakhir yang otomatis menyesuaikan jumlah kolom minggu terbaru dengan lebar kotak chat saat jendela atau panel samping dipersempit.
 3. Arahkan kursor ke kotak hari yang berwarna untuk melihat kartu commit hari tersebut:
    - tanggal lengkap (misalnya *Saturday, 07 November 2026*),
    - total commit pada hari itu,
@@ -159,6 +159,7 @@ Tidak ada izin jaringan/internet, kirim pesan, atau ubah file.
 
 ## Riwayat Versi
 
+- **1.4.2** — Membuat layout heatmap responsif mengikuti lebar aktual kotak chat `#chat-composer` (saat jendela Zeron dipersempit, sidebar dilebarkan, atau panel kanan dibuka, grid otomatis menyesuaikan jumlah kolom minggu terbaru, tetap rapi di tengah tanpa meluber keluar batas composer, dengan pemotongan teks header & penyembunyian legend otomatis di ruang sempit); menambahkan indikator scope aktif di header (`N commits in <project>` saat mode **Selected project**, atau `N commits across all folders` saat mode **All folders** / **No project**).
 - **1.4.1** — Menyelaraskan warna sel heatmap dengan **Accent color** Zeron secara native (konsisten antara grid, legend, mode gelap/terang, serta tema kustom/impor); meningkatkan kartu detail hari menjadi kartu melayang interaktif tepat di atas kotak yang di-hover — tetap terbuka saat kursor masuk ke kartu dan mendukung klik **+N more** / **Show less** untuk melihat dan men-scroll sisa commit lokal hari itu (tetap 100% lokal, tanpa link eksternal maupun izin baru).
 - **1.4.0** — Menambahkan pengaturan native di **Settings → Plugins** (`Show heatmap` untuk tampil/sembunyi dan `Commit scope` untuk memilih **All folders** atau **Selected project** di composer, dengan *fallback* otomatis ke semua folder lokal saat **No project** dipilih serta dukungan project lintas perangkat); menambahkan validasi path aman Windows/POSIX dan flag/env Git aman di service; menambahkan *window visibility gate* agar plugin tidak melakukan polling saat jendela Zeron tersembunyi atau heatmap dimatikan.
 - **1.3.1** — Memperbaiki bug heatmap yang terjebak di *"Reading your commits…"* saat Zeron baru dibuka sampai interface di-reload: jumlah commit, warna grid, dan kartu detail hari kini ter-update otomatis secara reaktif begitu data masuk; memperbaiki tombol **refresh** agar langsung memperbarui tampilan di tempat, menampilkan tooltip, mencegah klik ganda, dan tidak bocor klik di luar New Chat; optimasi build awal di bawah 1 ms.

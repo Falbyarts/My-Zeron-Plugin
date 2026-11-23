@@ -48,7 +48,9 @@ local DAYS = { "", "Mon", "", "Wed", "", "Fri", "" }
 local MONTHS = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" }
 local REFRESH = 300
 
-type Target = { key: string, device: string?, cwd: string? }
+type Target = { key: string, device: string?, cwd: string?, project_name: string? }
+
+local left_edge = ui.ref()
 
 local show_heatmap = zeron.setting("show_heatmap")
 local scope = zeron.setting("scope")
@@ -96,10 +98,19 @@ local function target_of(reactive: boolean): Target
 				then rec.device
 				else nil
 			if type(cwd) == "string" and cwd ~= "" then
+				local project_name: string? = nil
+				if type(p.name) == "string" and p.name ~= "" then
+					project_name = p.name
+				elseif type(rec) == "table" and type(rec.name) == "string" and rec.name ~= "" then
+					project_name = rec.name
+				else
+					project_name = string.match(cwd, "([^/\\]+)[/\\]*$")
+				end
 				return {
 					key = `{device or "@here"}|{cwd}`,
 					device = device,
 					cwd = cwd,
+					project_name = project_name,
 				}
 			end
 		end
@@ -108,6 +119,7 @@ local function target_of(reactive: boolean): Target
 		key = "@here|all",
 		device = nil,
 		cwd = nil,
+		project_name = nil,
 	}
 end
 
@@ -420,7 +432,7 @@ local function month_length(year: number, month: number): number
 	return days
 end
 
-type MonthMark = { name: string, left: number }
+type MonthMark = { name: string, col: number }
 local month_marks_cache: { [number]: { MonthMark } } = {}
 local function month_marks(start: number): { MonthMark }
 	local had = month_marks_cache[start]
@@ -436,9 +448,8 @@ local function month_marks(start: number): { MonthMark }
 		elseif date.day + 6 > month_length(date.year, date.month) then
 			month = if date.month == 12 then 1 else date.month + 1
 		end
-		local left = column * (CELL + GAP)
-		if month and left <= GRID_W - 22 then
-			table.insert(out, { name = MONTHS[month], left = left })
+		if month then
+			table.insert(out, { name = MONTHS[month], col = column })
 		end
 	end
 	month_marks_cache[start] = out
@@ -469,6 +480,8 @@ local function grid(
 	data_state: any,
 	visible: () -> boolean,
 	overlays_ready: any,
+	cols_of: () -> number,
+	grid_w_of: () -> number,
 	on_cell_enter: (day: string, first_at: number, held: any, column: number, row: number) -> (),
 	on_cell_leave: () -> ()
 ): Node
@@ -500,34 +513,37 @@ local function grid(
 
 	return ui.div {
 		relative = true,
-		w = GRID_W,
+		w = grid_w_of,
 		h = GRID_H,
 		shrink = 0,
 		ui.div {
 			absolute = true,
 			left = 0,
 			top = 0,
-			w = GRID_W,
+			w = grid_w_of,
 			h = GRID_H,
 			pointer_events = "none",
 			opacity = function(): number
 				return wash(0, scheme_of())
 			end,
 			ui.canvas {
-				w = GRID_W,
-				h = GRID_H,
+				w_full = true,
+				h_full = true,
 				draw = function(c: any)
 					ui.theme.current:get()
+					local cols = cols_of()
+					local col_start = COLUMNS - cols
 					local ready = overlays_ready:get()
 					local shown = visible()
 					local marks = if ready and shown
 						then marks_of(data_state:get(), tonumber(revision:get()) or 0, target_of(true).key)
 						else nil
-					for column = 0, COLUMNS - 1 do
+					for column = col_start, COLUMNS - 1 do
+						local vis_col = column - col_start
 						for row = 0, ROWS - 1 do
 							if (if marks then (marks[column * 7 + row] or 0) else 0) <= 0 then
 								c:rect(
-									column * (CELL + GAP),
+									vis_col * (CELL + GAP),
 									row * (CELL + GAP),
 									CELL,
 									CELL,
@@ -550,7 +566,8 @@ local function grid(
 				return "empty"
 			end
 			local rev = tonumber(revision:get()) or 0
-			return `{rev}:{target.key}:{known.at or 0}:{known.total or 0}`
+			local cols = cols_of()
+			return `{rev}:{target.key}:{known.at or 0}:{known.total or 0}:{cols}`
 		end, function(key: string): Node
 			if key == "empty" then
 				return ui.div { pointer_events = "none" }
@@ -560,63 +577,69 @@ local function grid(
 			if not days then
 				return ui.div { pointer_events = "none" }
 			end
+			local cols = cols_of()
+			local col_start = COLUMNS - cols
+			local gw = cols * CELL + (cols - 1) * GAP
 			local overlays: { Node } = {}
 			for day, held in days do
 				local slot = day_slot(start, tostring(day))
 				local n = entry_n(held)
 				if slot and n > 0 then
 					local column = math.floor(slot / 7)
-					local row = slot % 7
-					local first_at = start + slot * 86400
-					local first = if type(held) == "table" and type(held.commits) == "table" then held.commits[1] else nil
-					if type(first) == "table" and tonumber(first.at) then
-						first_at = tonumber(first.at) :: number
+					if column >= col_start then
+						local vis_col = column - col_start
+						local row = slot % 7
+						local first_at = start + slot * 86400
+						local first = if type(held) == "table" and type(held.commits) == "table" then held.commits[1] else nil
+						if type(first) == "table" and tonumber(first.at) then
+							first_at = tonumber(first.at) :: number
+						end
+						local day_str = tostring(day)
+						local level = level_of(n)
+						table.insert(
+							overlays,
+							ui.div {
+								absolute = true,
+								left = vis_col * (CELL + GAP) - 1,
+								top = row * (CELL + GAP) - 1,
+								w = CELL + 2,
+								h = CELL + 2,
+								pointer_events = function(): string
+									return if visible() then "auto" else "none"
+								end,
+								on_hover = function(inside: boolean)
+									if not visible() then
+										return
+									end
+									if inside then
+										on_cell_enter(day_str, first_at, held, column, row)
+									else
+										on_cell_leave()
+									end
+								end,
+								ui.div {
+									absolute = true,
+									left = 1,
+									top = 1,
+									w = CELL,
+									h = CELL,
+									rounded = ui.raw(2, "a heatmap cell's corner, at GitHub's scale"),
+									bg = "$accent",
+									opacity = function(): number
+										return wash(level, scheme_of())
+									end,
+									pointer_events = "none",
+								},
+							}
+						)
 					end
-					local day_str = tostring(day)
-					local level = level_of(n)
-					table.insert(
-						overlays,
-						ui.div {
-							absolute = true,
-							left = column * (CELL + GAP) - 1,
-							top = row * (CELL + GAP) - 1,
-							w = CELL + 2,
-							h = CELL + 2,
-							pointer_events = function(): string
-								return if visible() then "auto" else "none"
-							end,
-							on_hover = function(inside: boolean)
-								if not visible() then
-									return
-								end
-								if inside then
-									on_cell_enter(day_str, first_at, held, column, row)
-								else
-									on_cell_leave()
-								end
-							end,
-						ui.div {
-							absolute = true,
-							left = 1,
-							top = 1,
-							w = CELL,
-							h = CELL,
-							rounded = ui.raw(2, "a heatmap cell's corner, at GitHub's scale"),
-							bg = "$accent",
-							opacity = function(): number
-								return wash(level, scheme_of())
-							end,
-							pointer_events = "none",
-						},
-					}
-					)
 				end
 			end
 			return ui.div {
 				absolute = true,
 				left = 0,
 				top = 0,
-				w = GRID_W,
+				w = gw,
 				h = GRID_H,
 				pointer_events = "none",
 				table.unpack(overlays),
@@ -625,7 +648,7 @@ local function grid(
 			absolute = true,
 			left = 0,
 			top = 0,
-			w = GRID_W,
+			w = grid_w_of,
 			h = GRID_H,
 			pointer_events = "none",
 		}),
@@ -635,23 +658,10 @@ end
 local function Heatmap(props: any): Node
 	local start: number = props.start
 	local data_state: any = props.data
-
-	-- One date a week: pre-measured positions for month headers.
-	local months: { Node } = {}
-	for _, mark in month_marks(start) do
-		table.insert(
-			months,
-			ui.text {
-				mark.name,
-				absolute = true,
-				left = mark.left,
-				top = 0,
-				text_size = ui.raw(10, "month labels sit in their own 14 points"),
-				line_height = ui.raw(10, "month labels sit in their own 14 points"),
-				color = "$text.tertiary",
-			}
-		)
-	end
+	local cols_of: () -> number = props.cols_of
+	local grid_w_of: () -> number = props.grid_w_of
+	local box_w_of: () -> number = props.box_w_of
+	local all_months = month_marks(start)
 
 	local labels: { Node } = {}
 	for row = 0, ROWS - 1 do
@@ -701,6 +711,10 @@ local function Heatmap(props: any): Node
 		elseif known.at == nil then
 			return zeron.s("loading")
 		end
+		if type(target.project_name) == "string" and target.project_name ~= "" then
+			local limit = if box_w_of() < 420 then 16 else 24
+			return zeron.s("count_project", { n = total, project = one_line(target.project_name, limit) })
+		end
 		return zeron.s("count", { n = total })
 	end
 
@@ -710,6 +724,9 @@ local function Heatmap(props: any): Node
 		local total: number = if type(known) == "table" and known.target_key == target.key
 			then tonumber(known.total) or 0
 			else 0
+		if type(target.project_name) == "string" and target.project_name ~= "" then
+			return zeron.s("label_project", { n = total, project = target.project_name })
+		end
 		return zeron.s("label", { n = total })
 	end
 
@@ -725,15 +742,19 @@ local function Heatmap(props: any): Node
 			h = HEADER_H,
 			justify = "between",
 			items = "center",
+			gap = 6,
 			ui.row {
 				items = "center",
 				gap = 2,
-				shrink = 0,
+				min_w = 0,
+				shrink = 1,
 				ui.text {
 					header_text,
 					text_size = "$font.size.xs",
 					color = "$text.secondary",
-					shrink = 0,
+					truncate = true,
+					min_w = 0,
+					shrink = 1,
 				},
 				IconButton {
 					label = zeron.t("refresh"),
@@ -765,32 +786,66 @@ local function Heatmap(props: any): Node
 					),
 				},
 			},
-			ui.row {
-				items = "center",
-				gap = 4,
-				shrink = 0,
-				ui.text { zeron.t("less"), text_size = "$font.size.xs", color = "$text.tertiary" },
-				swatch(0),
-				swatch(1),
-				swatch(2),
-				swatch(3),
-				swatch(4),
-				ui.text { zeron.t("more"), text_size = "$font.size.xs", color = "$text.tertiary" },
-			},
+			ui.show(
+				function(): boolean
+					return box_w_of() >= 370
+				end,
+				ui.row {
+					items = "center",
+					gap = 4,
+					shrink = 0,
+					ui.text { zeron.t("less"), text_size = "$font.size.xs", color = "$text.tertiary" },
+					swatch(0),
+					swatch(1),
+					swatch(2),
+					swatch(3),
+					swatch(4),
+					ui.text { zeron.t("more"), text_size = "$font.size.xs", color = "$text.tertiary" },
+				}
+			),
 		},
-		-- The months, over the columns they begin in.
+		-- The months, over the visible columns they begin in.
 		ui.row {
 			w_full = true,
 			h = MONTH_H,
 			gap = 6,
 			ui.div { w = LABELS_W, h = MONTH_H, shrink = 0 },
-			ui.div {
-				relative = true,
-				w = GRID_W,
-				h = MONTH_H,
-				shrink = 0,
-				table.unpack(months),
-			},
+			ui.presence(function(): string
+				return tostring(cols_of())
+			end, function(key: string): Node
+				local cols = tonumber(key) or COLUMNS
+				local col_start = COLUMNS - cols
+				local gw = cols * CELL + (cols - 1) * GAP
+				local months: { Node } = {}
+				local last_left = -100
+				for _, mark in all_months do
+					if mark.col >= col_start then
+						local left = (mark.col - col_start) * (CELL + GAP)
+						if left <= gw - 22 and left - last_left >= 24 then
+							last_left = left
+							table.insert(
+								months,
+								ui.text {
+									mark.name,
+									absolute = true,
+									left = left,
+									top = 0,
+									text_size = ui.raw(10, "month labels sit in their own 14 points"),
+									line_height = ui.raw(10, "month labels sit in their own 14 points"),
+									color = "$text.tertiary",
+								}
+							)
+						end
+					end
+				end
+				return ui.div {
+					relative = true,
+					w = gw,
+					h = MONTH_H,
+					shrink = 0,
+					table.unpack(months),
+				}
+			end, { h = MONTH_H, shrink = 0 }),
 		},
 		-- The days down the side, then the weeks.
 		ui.row {
@@ -798,14 +853,39 @@ local function Heatmap(props: any): Node
 			h = GRID_H,
 			gap = 6,
 			ui.column { w = LABELS_W, h = GRID_H, gap = GAP, shrink = 0, table.unpack(labels) },
-			grid(start, data_state, props.visible, props.overlays_ready, props.on_cell_enter, props.on_cell_leave),
+			grid(
+				start,
+				data_state,
+				props.visible,
+				props.overlays_ready,
+				cols_of,
+				grid_w_of,
+				props.on_cell_enter,
+				props.on_cell_leave
+			),
 		},
 	}
 end
 
+-- Zero-width marker before `#chat-composer` so the heatmap measures the
+-- composer's exact live width and stays inside its bounds when narrow.
+zeron.place {
+	at = "#chat-composer",
+	before = function(): Node
+		return ui.div {
+			ref = left_edge,
+			w = 0,
+			h = 0,
+			shrink = 0,
+			pointer_events = "none",
+		}
+	end,
+}
+
 zeron.place {
 	at = "#chat-composer",
 	after = function(): Node
+		local right_edge = ui.ref()
 		local start = grid_start()
 		local since = day_of(start)
 		local route = zeron.live("route")
@@ -1067,14 +1147,101 @@ zeron.place {
 			end)
 		end)
 
-		local function card_left(column: number): number
-			local cell_left = LABELS_W + 6 + column * (CELL + GAP)
-			if column < 6 then
-				return math.max(0, cell_left)
-			elseif column >= COLUMNS - 6 then
-				return math.min(WIDTH - CARD_W, cell_left + CELL - CARD_W)
+		local measured_w = ui.use_state(WIDTH)
+
+		local function edge_x(ref: any): number?
+			local ok, el = pcall(function(): any
+				return ref:peek()
+			end)
+			if ok and el ~= nil and type(el.x) == "number" then
+				return el.x
 			end
-			return math.clamp(cell_left + CELL / 2 - CARD_W / 2, 0, WIDTH - CARD_W)
+			local ok2, list = pcall(function(): any
+				return ref:elements()
+			end)
+			if ok2 and type(list) == "table" and list[1] ~= nil and type(list[1].x) == "number" then
+				return list[1].x
+			end
+			return nil
+		end
+
+		local function measure_composer()
+			local lx = edge_x(left_edge)
+			local rx = edge_x(right_edge)
+			if lx and rx then
+				local w = math.floor(rx - lx + 0.5)
+				if w >= 120 and math.abs(measured_w:peek() - w) >= 1 then
+					measured_w:set(w)
+				end
+			end
+		end
+
+		-- Re-measure on window resize, route/home transitions, and initial layout.
+		ui.effect(function()
+			local win = (ui :: any).window
+			if win ~= nil and win.size ~= nil then
+				pcall(function()
+					win.size:get()
+				end)
+			end
+			home()
+			zeron.window(true)
+			measure_composer()
+			ui.after(0, measure_composer)
+			ui.after(48, measure_composer)
+		end)
+
+		-- Also catch sidebar drag, panel open/close, and conversation_width changes
+		-- while the heatmap is visible on New Chat (no-op unless width changed).
+		ui.on_mount(function()
+			ui.after(0, measure_composer)
+			ui.after(64, measure_composer)
+			ui.every(150, function()
+				if home() and show_heatmap:peek() ~= false and zeron.window(true).shown then
+					measure_composer()
+				end
+			end)
+		end)
+
+		local function composer_w(): number
+			return measured_w:get()
+		end
+
+		local function cols_of(): number
+			local grid_room = math.max(CELL, composer_w() - LABELS_W - 6)
+			return math.clamp(math.floor((grid_room + GAP) / (CELL + GAP)), 8, COLUMNS)
+		end
+
+		local function grid_w_of(): number
+			local cols = cols_of()
+			return cols * CELL + (cols - 1) * GAP
+		end
+
+		local function box_w_of(): number
+			return LABELS_W + 6 + grid_w_of()
+		end
+
+		local function right_offset(): number
+			return math.max(0, math.floor((composer_w() - box_w_of()) / 2))
+		end
+
+		local function card_w_of(): number
+			return math.min(CARD_W, box_w_of())
+		end
+
+		local function card_left(column: number): number
+			local cols = cols_of()
+			local col_start = COLUMNS - cols
+			local bw = box_w_of()
+			local cw = math.min(CARD_W, bw)
+			local vis_col = math.max(0, column - col_start)
+			local cell_left = LABELS_W + 6 + vis_col * (CELL + GAP)
+			if vis_col < 6 then
+				return math.max(0, math.min(bw - cw, cell_left))
+			elseif vis_col >= cols - 6 then
+				return math.max(0, math.min(bw - cw, cell_left + CELL - cw))
+			end
+			return math.clamp(cell_left + CELL / 2 - cw / 2, 0, math.max(0, bw - cw))
 		end
 
 		local function card_bottom(row: number): number
@@ -1084,7 +1251,11 @@ zeron.place {
 		local function DayCard(): Node
 			return ui.show(
 				function(): boolean
-					return visible() and card_open:get() and card:get() ~= nil
+					local c = card:get()
+					if not visible() or not card_open:get() or c == nil then
+						return false
+					end
+					return c.column >= COLUMNS - cols_of()
 				end,
 				HoverCard.Card {
 					absolute = true,
@@ -1096,7 +1267,7 @@ zeron.place {
 						local c = card:get()
 						return if c then card_bottom(c.row) else 0
 					end,
-					w = CARD_W,
+					w = card_w_of,
 					p = "$space.3",
 					gap = "$space.1",
 					pointer_events = "auto",
@@ -1132,31 +1303,43 @@ zeron.place {
 		end
 
 		return ui.div {
-			id = "heatmap-loclabs",
-			absolute = true,
-			right = 0,
-			bottom = -(HEIGHT + BELOW),
-			w = WIDTH,
-			h = HEIGHT,
+			ref = right_edge,
+			relative = true,
+			w = 0,
+			h_full = true,
+			shrink = 0,
 			overflow = "visible",
-			-- Informational: it takes no click from the page; only its days
-			-- and refresh button answer the pointer, and only when visible.
 			pointer_events = "none",
-			opacity = function(): number
-				return if visible() then 1 else 0
-			end,
-			Heatmap {
-				data = data,
-				start = start,
-				visible = visible,
-				overlays_ready = overlays_ready,
-				refresh = function()
-					load(true)
+			ui.div {
+				id = "heatmap-loclabs",
+				absolute = true,
+				right = right_offset,
+				bottom = -(HEIGHT + BELOW),
+				w = box_w_of,
+				h = HEIGHT,
+				overflow = "visible",
+				-- Informational: it takes no click from the page; only its days
+				-- and refresh button answer the pointer, and only when visible.
+				pointer_events = "none",
+				opacity = function(): number
+					return if visible() then 1 else 0
 				end,
-				on_cell_enter = on_cell_enter,
-				on_cell_leave = on_cell_leave,
+				Heatmap {
+					data = data,
+					start = start,
+					visible = visible,
+					overlays_ready = overlays_ready,
+					cols_of = cols_of,
+					grid_w_of = grid_w_of,
+					box_w_of = box_w_of,
+					refresh = function()
+						load(true)
+					end,
+					on_cell_enter = on_cell_enter,
+					on_cell_leave = on_cell_leave,
+				},
+				DayCard(),
 			},
-			DayCard(),
 		}
 	end,
 }
