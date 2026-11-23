@@ -2,13 +2,12 @@
 -- Heatmap-LocLabs: a new chat's composer, with the year of commits under it.
 --
 -- The composer is Zeron's (`#chat-composer`); this adds one node after it,
--- below its foot, on a new chat only. The commits are this device's own
--- chats' and projects' folders, read by the plugin's service (`year`), and
--- each day is a cell in a 53-week grid, Sunday first: no commits in the
--- text's ink, more in the accent the person chose. The header, canvas, and
--- day overlays all react to the loaded commits, so the count and grid appear
--- as soon as the service answers, update immediately on refresh, and follow
--- light and dark themes as they change.
+-- below its foot, on a new chat only (when enabled in Settings → Plugins).
+-- Commits come from the plugin's service (`year`), scoped either to all local
+-- chat/project folders on this device or to the project selected in the
+-- composer (including cross-device projects, falling back to all local folders
+-- when No project is selected). Each day is a cell in a 53-week grid, Sunday
+-- first: no commits in the text's ink, more in the accent the person chose.
 --
 -- The header's refresh asks the service again at once, past its five-minute
 -- cache, a ring turning in the glyph's place while it waits. A day's card is
@@ -50,9 +49,16 @@ local DAYS = { "", "Mon", "", "Wed", "", "Fri", "" }
 local MONTHS = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" }
 local REFRESH = 300
 
+type Target = { key: string, device: string?, cwd: string? }
+
+local show_heatmap = zeron.setting("show_heatmap")
+local scope = zeron.setting("scope")
+local pick = ui.shared("zeron.project", nil :: any)
+
 local data = ui.state("heatmap-loclabs.year.v2", nil :: any)
 local pending = ui.state("heatmap-loclabs.pending", false)
 local pending_at = ui.state("heatmap-loclabs.pending_at", 0)
+local pending_key = ui.state("heatmap-loclabs.pending_key", "")
 -- (A read still out when the plugin reloads never answers: its promise was
 -- the old load's. Start the next load clean, as Zeron's own modules do, and
 -- let a read's token be shared, so one from an old load is let go.)
@@ -64,7 +70,46 @@ do
 	if was then
 		pending:set(false)
 		pending_at:set(0)
+		pending_key:set("")
+	elseif pending_key:peek() ~= "" then
+		pending_key:set("")
 	end
+end
+
+-- Registered once at module load so remounts never duplicate setting listeners.
+local on_setting_changed: ((string, any) -> ())? = nil
+zeron.on_setting(function(key: string, value: any)
+	if on_setting_changed then
+		on_setting_changed(key, value)
+	end
+end)
+
+local function target_of(reactive: boolean): Target
+	local cur_scope = if reactive then scope:get() else scope:peek()
+	if cur_scope == "project" then
+		local p: any = if reactive then pick:get() else pick:peek()
+		if type(p) == "table" and type(p.id) == "string" and p.id ~= "" then
+			local rec: any = zeron.context_of("project", p.id)
+			local cwd: any = if type(rec) == "table" then (rec.path or rec.folder) else nil
+			local device: string? = if type(rec) == "table"
+					and type(rec.device) == "string"
+					and rec.device ~= ""
+				then rec.device
+				else nil
+			if type(cwd) == "string" and cwd ~= "" then
+				return {
+					key = `{device or "@here"}|{cwd}`,
+					device = device,
+					cwd = cwd,
+				}
+			end
+		end
+	end
+	return {
+		key = "@here|all",
+		device = nil,
+		cwd = nil,
+	}
 end
 
 local function day_of(at: number): string
@@ -114,7 +159,7 @@ local function scheme_of(): string
 		local r = (tonumber(string.sub(bg, 2, 3), 16) or 0) / 255
 		local g = (tonumber(string.sub(bg, 4, 5), 16) or 0) / 255
 		local b = (tonumber(string.sub(bg, 6, 7), 16) or 0) / 255
-		if 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.5 then
+		if 0.2126 * r + 0.7152 * g + 0.722 * b > 0.5 then
 			return "light"
 		end
 	end
@@ -329,21 +374,25 @@ do
 end
 
 -- The grid on one canvas: 371 small squares are cheaper drawn than built
--- as nodes. The canvas reads both the theme and the loaded commits reactively
--- so it repaints immediately when commits arrive, on refresh, or on theme
--- switch. Days with commits carry an invisible hover overlay rebuilt via
--- `ui.presence` whenever commit data changes, deferred past the initial build
--- frame so mounting `#chat-composer` stays fast.
-local function grid(start: number, data_state: any, home: () -> boolean, overlays_ready: any): Node
+-- as nodes. The canvas reads the theme, active scope/project target, and
+-- loaded commits reactively so it repaints immediately when commits arrive,
+-- on refresh, on scope/project switch, or on theme switch. Days with commits
+-- carry an invisible hover overlay rebuilt via `ui.presence` whenever commit
+-- data changes, deferred past the initial build frame so mounting
+-- `#chat-composer` stays fast.
+local function grid(start: number, data_state: any, visible: () -> boolean, overlays_ready: any): Node
 	local last_key = ""
 	local last_marks: { [number]: number } = {}
-	local function marks_of(known: any, rev: number): { [number]: number }
-		local key = if type(known) == "table" then `{rev}:{known.at or 0}:{known.total or 0}` else "nil"
+	local function marks_of(known: any, rev: number, target_key: string): { [number]: number }
+		local matches = type(known) == "table" and known.target_key == target_key
+		local key = if matches
+			then `{rev}:{target_key}:{known.at or 0}:{known.total or 0}`
+			else `empty:{target_key}`
 		if key == last_key then
 			return last_marks
 		end
 		local out: { [number]: number } = {}
-		local days: any = if type(known) == "table" and type(known.days) == "table" then known.days else nil
+		local days: any = if matches and type(known.days) == "table" then known.days else nil
 		if days then
 			for day, held in days do
 				local slot = day_slot(start, tostring(day))
@@ -367,11 +416,12 @@ local function grid(start: number, data_state: any, home: () -> boolean, overlay
 			w = GRID_W,
 			h = GRID_H,
 			draw = function(c: any)
-				-- (Read here, in the draw: both the theme and the commit data
-				-- are reactive, so a theme change or fresh commit data repaints
-				-- the canvas immediately.)
+				-- (Read here, in the draw: theme, target, and commit data are
+				-- reactive, so a theme/scope/project change or fresh commits
+				-- repaint the canvas immediately.)
 				ui.theme.current:get()
-				local marks = marks_of(data_state:get(), tonumber(revision:get()) or 0)
+				local target = target_of(true)
+				local marks = marks_of(data_state:get(), tonumber(revision:get()) or 0, target.key)
 				local scheme = scheme_of()
 				local colors: { [number]: any } = {}
 				for level = 0, 4 do
@@ -396,15 +446,16 @@ local function grid(start: number, data_state: any, home: () -> boolean, overlay
 			end,
 		},
 		ui.presence(function(): string
-			if not overlays_ready:get() or not home() then
+			if not overlays_ready:get() or not visible() then
 				return "empty"
 			end
+			local target = target_of(true)
 			local known: any = data_state:get()
-			if type(known) ~= "table" or type(known.days) ~= "table" then
+			if type(known) ~= "table" or known.target_key ~= target.key or type(known.days) ~= "table" then
 				return "empty"
 			end
 			local rev = tonumber(revision:get()) or 0
-			return `{rev}:{known.at or 0}:{known.total or 0}`
+			return `{rev}:{target.key}:{known.at or 0}:{known.total or 0}`
 		end, function(key: string): Node
 			if key == "empty" then
 				return ui.div { pointer_events = "none" }
@@ -437,7 +488,7 @@ local function grid(start: number, data_state: any, home: () -> boolean, overlay
 							w = CELL + 2,
 							h = CELL + 2,
 							pointer_events = function(): string
-								return if home() then "auto" else "none"
+								return if visible() then "auto" else "none"
 							end,
 							tooltip = day_card(first_at, held),
 							tooltip_placement = { side = "top", align = align, offset = 10 },
@@ -509,17 +560,25 @@ local function Heatmap(props: any): Node
 	end
 
 	local function header_text(): string
+		local target = target_of(true)
 		local known: any = data_state:get()
-		if type(known) ~= "table" then
+		if type(known) ~= "table" or known.target_key ~= target.key then
 			return zeron.s("loading")
 		end
 		local total: number = tonumber(known.total) or 0
 		if known.error and total == 0 then
 			if
+				known.error == "offline"
+				or known.error == "not_installed"
+				or known.error == "version_mismatch"
+				or known.error == "other_author"
+			then
+				return zeron.s("remote_unavailable")
+			elseif
 				known.error == "not_approved"
 				or known.error == "off"
 				or known.error == "not_allowed"
-				or known.error == "not_installed"
+				or known.error == "not_a_checkout"
 			then
 				return zeron.s("unavailable")
 			end
@@ -531,8 +590,11 @@ local function Heatmap(props: any): Node
 	end
 
 	local function a11y_label(): string
+		local target = target_of(true)
 		local known: any = data_state:get()
-		local total: number = if type(known) == "table" then tonumber(known.total) or 0 else 0
+		local total: number = if type(known) == "table" and known.target_key == target.key
+			then tonumber(known.total) or 0
+			else 0
 		return zeron.s("label", { n = total })
 	end
 
@@ -565,7 +627,7 @@ local function Heatmap(props: any): Node
 					tone = "quiet",
 					tooltip_side = "bottom",
 					pointer_events = function(): string
-						return if props.home() then "auto" else "none"
+						return if props.visible() then "auto" else "none"
 					end,
 					disabled = function(): boolean
 						return pending:get()
@@ -621,7 +683,7 @@ local function Heatmap(props: any): Node
 			h = GRID_H,
 			gap = 6,
 			ui.column { w = LABELS_W, h = GRID_H, gap = GAP, shrink = 0, table.unpack(labels) },
-			grid(start, data_state, props.home, props.overlays_ready),
+			grid(start, data_state, props.visible, props.overlays_ready),
 		},
 	}
 end
@@ -637,6 +699,9 @@ zeron.place {
 			local where = route()
 			return type(where) == "table" and where.name == "home"
 		end
+		local function visible(): boolean
+			return home() and show_heatmap:get() ~= false
+		end
 
 		-- (Defer building day hover cards by one tick so initial `#chat-composer`
 		-- placement stays fast while the canvas and header appear on frame 1.)
@@ -649,10 +714,15 @@ zeron.place {
 		-- from before a reload.)
 		local reads = 0
 		local function load(force: boolean)
-			-- (Prevent overlapping reads while one is already in flight, while
-			-- still letting a stalled read expire after its timeout.)
+			if show_heatmap:peek() == false then
+				return
+			end
+			local target = target_of(false)
+			-- (Prevent overlapping reads for the same target while one is already
+			-- in flight, while letting a switch to a different target proceed at
+			-- once and letting a stalled read expire after its timeout.)
 			local waited = os.time() - (tonumber(pending_at:peek()) or 0)
-			if pending:peek() and waited < 30 then
+			if pending:peek() and pending_key:peek() == target.key and waited < 30 then
 				return
 			end
 			reads += 1
@@ -660,69 +730,122 @@ zeron.place {
 			latest:set(mine)
 			pending:set(true)
 			pending_at:set(os.time())
-			zeron.service():call("year", { since = since, force = force }, { timeout = 30 }):after(
-				function(value: any)
-					if latest:peek() ~= mine then
-						return
+			pending_key:set(target.key)
+			zeron.service(target.device)
+				:call("year", { since = since, force = force, cwd = target.cwd }, { timeout = 30 })
+				:after(
+					function(value: any)
+						if latest:peek() ~= mine then
+							return
+						end
+						pending:set(false)
+						pending_at:set(0)
+						pending_key:set("")
+						value = if type(value) == "table" then value else {}
+						revision:set((tonumber(revision:peek()) or 0) + 1)
+						data:set({
+							at = os.time(),
+							since = since,
+							target_key = target.key,
+							days = value.days or {},
+							total = value.total or 0,
+						})
+					end,
+					function(err: any)
+						if latest:peek() ~= mine then
+							return
+						end
+						pending:set(false)
+						pending_at:set(0)
+						pending_key:set("")
+						local reason = zeron.reason(err)
+						local prev: any = data:peek()
+						local had: any = if type(prev) == "table" and prev.target_key == target.key
+							then table.clone(prev)
+							else { days = {}, total = 0 }
+						had.at = os.time()
+						had.since = since
+						had.target_key = target.key
+						had.error = reason
+						revision:set((tonumber(revision:peek()) or 0) + 1)
+						data:set(had)
+						-- (If the service was still starting up on cold launch,
+						-- retry shortly instead of waiting 30 seconds; never
+						-- auto-retry permanent or remote refusal reasons.)
+						if
+							(tonumber(had.total) or 0) == 0
+							and reason ~= "not_approved"
+							and reason ~= "off"
+							and reason ~= "not_allowed"
+							and reason ~= "not_installed"
+							and reason ~= "version_mismatch"
+							and reason ~= "other_author"
+							and reason ~= "offline"
+							and reason ~= "not_a_checkout"
+						then
+							ui.after(3000, function()
+								if
+									home()
+									and show_heatmap:peek() ~= false
+									and zeron.window(true).shown
+									and not pending:peek()
+								then
+									load(false)
+								end
+							end)
+						end
 					end
-					pending:set(false)
-					pending_at:set(0)
-					value = if type(value) == "table" then value else {}
-					revision:set((tonumber(revision:peek()) or 0) + 1)
-					data:set({
-						at = os.time(),
-						since = since,
-						days = value.days or {},
-						total = value.total or 0,
-					})
-				end,
-				function(err: any)
-					if latest:peek() ~= mine then
-						return
-					end
-					pending:set(false)
-					pending_at:set(0)
-					local reason = zeron.reason(err)
-					local had: any = table.clone(data:peek() or {})
-					had.at = os.time()
-					had.since = since
-					had.error = reason
-					revision:set((tonumber(revision:peek()) or 0) + 1)
-					data:set(had)
-					-- (If the service was still starting up on cold launch, retry
-					-- shortly instead of waiting 30 seconds.)
-					if
-						(tonumber(had.total) or 0) == 0
-						and reason ~= "not_approved"
-						and reason ~= "off"
-						and reason ~= "not_allowed"
-						and reason ~= "not_installed"
-					then
-						ui.after(3000, function()
-							if home() and not pending:peek() then
-								load(false)
-							end
-						end)
-					end
-				end
-			)
+				)
 		end
 
 		-- Five minutes of a grid is enough; a failed read is asked again
-		-- sooner, and a stale one when the window comes back to a new chat.
+		-- sooner, and a stale one when the window comes back to a new chat or
+		-- switches target.
 		local function due(): boolean
 			local known: any = data:peek()
+			local target = target_of(false)
 			return not (
 				type(known) == "table"
 				and known.since == since
+				and known.target_key == target.key
 				and known.error == nil
 				and os.time() - (tonumber(known.at) or 0) < REFRESH
 			)
 		end
 
+		local function handle_setting(key: string, value: any)
+			if key ~= "show_heatmap" and key ~= "scope" then
+				return
+			end
+			if key == "show_heatmap" and value == false then
+				return
+			end
+			ui.after(0, function()
+				if show_heatmap:peek() ~= false and home() and zeron.window(true).shown and due() then
+					load(false)
+				end
+			end)
+		end
+		on_setting_changed = handle_setting
+		pcall(ui.on_cleanup, function()
+			if on_setting_changed == handle_setting then
+				on_setting_changed = nil
+			end
+		end)
+
 		ui.effect(function()
 			local where = route()
+			local win = zeron.window()
+			local shown_setting = show_heatmap:get()
+			local cur_scope = scope:get()
+			if cur_scope == "project" then
+				pick:get()
+				target_of(true)
+			end
 			if type(where) ~= "table" or where.name ~= "home" then
+				return
+			end
+			if not win.shown or shown_setting == false then
 				return
 			end
 			if due() then
@@ -731,7 +854,7 @@ zeron.place {
 			-- (Resting here is no reason to leave an old grid up, or a read
 			-- that failed while the service was still starting.)
 			ui.every(30000, function()
-				if home() and due() then
+				if home() and show_heatmap:peek() ~= false and zeron.window(true).shown and due() then
 					load(false)
 				end
 			end)
@@ -745,15 +868,15 @@ zeron.place {
 			w = WIDTH,
 			h = HEIGHT,
 			-- Informational: it takes no click from the page; only its days
-			-- and refresh button answer the pointer, and only on a new chat.
+			-- and refresh button answer the pointer, and only when visible.
 			pointer_events = "none",
 			opacity = function(): number
-				return if home() then 1 else 0
+				return if visible() then 1 else 0
 			end,
 			Heatmap {
 				data = data,
 				start = start,
-				home = home,
+				visible = visible,
 				overlays_ready = overlays_ready,
 				refresh = function()
 					load(true)

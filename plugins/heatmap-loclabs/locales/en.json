@@ -9,5 +9,6 @@
   "empty": "No commits this day",
   "untitled": "(no message)",
   "loading": "Reading your commits…",
-  "unavailable": "Allow Heatmap-LocLabs in Settings → Plugins to see your commits."
+  "unavailable": "Allow Heatmap-LocLabs in Settings → Plugins to see your commits.",
+  "remote_unavailable": "Heatmap-LocLabs isn't available on this project's device."
 }

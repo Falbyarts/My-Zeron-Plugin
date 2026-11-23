@@ -10,21 +10,51 @@
   "permissions": [
     "ui.add",
     "sessions.read",
+    "files.read",
     "service",
     "commands"
   ],
   "service": "service.luau",
+  "settings": [
+    {
+      "default": true,
+      "description": "Show the commit heatmap under a new chat's composer.",
+      "id": "show_heatmap",
+      "kind": "switch",
+      "label": "Show heatmap"
+    },
+    {
+      "default": "all",
+      "description": "Count commits from all local folders, or only the project selected in the composer.",
+      "id": "scope",
+      "kind": "choice",
+      "label": "Commit scope",
+      "options": [
+        {
+          "description": "Count commits across all chat and project folders on this device.",
+          "label": "All folders",
+          "value": "all"
+        },
+        {
+          "description": "Count commits from the project selected in the composer (falls back to all local folders when No project is selected).",
+          "label": "Selected project",
+          "value": "project"
+        }
+      ],
+      "style": "segmented"
+    }
+  ],
   "signature": {
     "files": {
-      "README.md": "173dd0850a0b7257ceff5ae48e6a57dfec97a577f153b0d4257d64aae08a8767",
+      "README.md": "1e3a5e138df82bc81f1c6e46aac88e2f04744841df2d100bdfc17c36f3f3647d",
       "icon.svg": "12ff85b68819389654101fef4bc4fe1188aaed6e7d10f80957525d088da2c4cf",
-      "init.luau": "aca2146805bd0220aeb2d81a6ee8aa0caf1f5f6deee2e73dc7db0b88243c5564",
-      "locales/en.json": "043e71e0cc754432527589f13e30a8f0d0b0a157c1ed67db3f9c6f8eaa405ac1",
-      "service.luau": "97c1644667aedd123966927bbe14751ec2470e951d55b3af5caf6291ea1022c6",
+      "init.luau": "cb3c0bd30f7619a74df5c1f522b879bdbd02d4e951bc863b687c99cd0451a3fb",
+      "locales/en.json": "310d89acb3f63d8fe9b7aa32c7728b2201f446ea5201b2eaa8c2411109ce41be",
+      "service.luau": "2b7fae62e5b38d2f337b6ba2b0bde809892d18fc8b9ec7e2b17ca291d09c73ed",
       "zeron.luau": "178b79b55566c9643b26181539b8e1348482179a169da98ba384cd66f3f8a483"
     },
     "key": "qe0KcCOqgglmdlcmQdH38lS8wk-P2wEL0lS_5m7L9II",
-    "sig": "5kdoKjqwI4_Zcdwug4iqsXlSLOcoUzjUPbXCeNll-HKbQgGA2HeVHGcJ_-yceWIymi6kPJUbMkq9vmqULxT9AQ"
+    "sig": "Ut0_CPD9lk9AI4apnLBonl95TX-UA14W9MHSG8xI2ZIj-Oat4WMEm9C_f-HBxsNPvoZnmUyE0K3_gkDUIDMwDw"
   },
-  "version": "1.3.1"
+  "version": "1.4.0"
 }
