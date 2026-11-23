@@ -24,6 +24,9 @@ return function(zeron: any, client: any): any
 		local panel = props.panel
 
 		local function kind_key(): string
+			if type(sid) ~= "string" or sid == "" then
+				return ""
+			end
 			if show_sidebar:get() == false then
 				return ""
 			end
@@ -53,8 +56,12 @@ return function(zeron: any, client: any): any
 					shrink = 0,
 					cursor = "pointer",
 					on_click = function()
-						zeron.open({ session = sid })
+						client.focus_chat:set(sid)
+						pcall(zeron.open, { session = sid })
 						client.open_inspector(panel, sid)
+						ui.after(60, function()
+							client.open_inspector(nil, sid)
+						end)
 					end,
 					Badge.Badge {
 						label,
@@ -74,9 +81,14 @@ return function(zeron: any, client: any): any
 					shrink = 0,
 					cursor = "pointer",
 					on_click = function()
-						zeron.open({ session = sid })
+						local target_captain_id = w.captain_id or sid
+						client.focus_chat:set(target_captain_id)
+						pcall(zeron.open, { session = sid })
 						if w.captain_id then
 							client.open_inspector(panel, w.captain_id)
+							ui.after(60, function()
+								client.open_inspector(nil, w.captain_id)
+							end)
 						end
 					end,
 					Badge.Badge {
@@ -95,15 +107,18 @@ return function(zeron: any, client: any): any
 		local sid = props.session_id
 
 		local function key(): string
+			if type(sid) ~= "string" or sid == "" then
+				return ""
+			end
 			local cap = client.captain_of(sid)
 			if cap then
 				local sum = client.crew_summary(sid)
-				return `cap:{cap.name}:{sum.total}:{sum.running}:{sum.attention}`
+				return `cap:{cap.name or "Captain"}:{sum.total}:{sum.running}:{sum.attention}`
 			end
 			local w = client.worker_of(sid)
 			if w then
-				local parent = client.captain_of(w.captain_id)
-				return `w:{w.role}:{w.status}:{if parent then parent.name else ""}`
+				local parent = if w.captain_id then client.captain_of(w.captain_id) else nil
+				return `w:{w.role or "worker"}:{w.status or "idle"}:{if parent then (parent.name or "") else ""}`
 			end
 			return ""
 		end
@@ -142,8 +157,8 @@ return function(zeron: any, client: any): any
 
 			local w = client.worker_of(sid)
 			if w then
-				local parent = client.captain_of(w.captain_id)
-				local parent_name = if parent then parent.name else "Captain"
+				local parent = if w.captain_id then client.captain_of(w.captain_id) else nil
+				local parent_name = if parent and type(parent.name) == "string" and parent.name ~= "" then parent.name else "Captain"
 				return ui.row {
 					class = "captain-deck-card-row",
 					w_full = true,
@@ -174,6 +189,9 @@ return function(zeron: any, client: any): any
 		local panel = props.panel
 
 		local function key(): string
+			if type(sid) ~= "string" or sid == "" then
+				return "off"
+			end
 			if show_header:get() == false then
 				return "off"
 			end
@@ -184,8 +202,8 @@ return function(zeron: any, client: any): any
 			end
 			local w = client.worker_of(sid)
 			if w then
-				local parent = client.captain_of(w.captain_id)
-				return `w:{w.role}:{w.status}:{if parent then parent.name else ""}`
+				local parent = if w.captain_id then client.captain_of(w.captain_id) else nil
+				return `w:{w.role or "worker"}:{w.status or "idle"}:{if parent then (parent.name or "") else ""}`
 			end
 			return "none"
 		end
@@ -224,8 +242,8 @@ return function(zeron: any, client: any): any
 
 			local w = client.worker_of(sid)
 			if w then
-				local parent = client.captain_of(w.captain_id)
-				local parent_name = if parent then parent.name else "Captain"
+				local parent = if w.captain_id then client.captain_of(w.captain_id) else nil
+				local parent_name = if parent and type(parent.name) == "string" and parent.name ~= "" then parent.name else "Captain"
 				return ui.row {
 					class = "captain-deck-header-pill",
 					shrink = 0,
@@ -253,17 +271,18 @@ return function(zeron: any, client: any): any
 						label = `Open Captain {parent_name}`,
 						on_click = function()
 							if w.captain_id then
-								zeron.open({ session = w.captain_id })
+								pcall(zeron.open, { session = w.captain_id })
 							end
 						end,
 					},
 				}
 			end
 
-			-- Normal chat: subtle 1-click Promote button.
+			-- Normal chat: subtle, unambiguous 1-click Promote button.
 			return Button {
 				tone = "ghost",
 				size = "xs",
+				tooltip = zeron.s("badges.promote_tooltip"),
 				on_click = function()
 					local title = client.session_title(sid)
 					client.call("promote_captain", { chat_id = sid, name = title }):after(function()
@@ -271,7 +290,7 @@ return function(zeron: any, client: any): any
 						client.open_inspector(panel, sid)
 					end, function() end)
 				end,
-				Icon { name = "star", size = 12 },
+				Icon { name = "users-group-rounded", size = 12 },
 				zeron.s("badges.promote_short"),
 			}
 		end)

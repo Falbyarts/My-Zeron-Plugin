@@ -19,7 +19,8 @@ local Deck = require("./deck")(zeron, client)
 zeron.place {
 	at = ".session-title",
 	after = function(): Node
-		local id = zeron.need("session").id
+		local sess = zeron.context("session")
+		local id = if type(sess) == "table" and type(sess.id) == "string" then sess.id else ""
 		local panel = zeron.context("panel")
 		return Badges.SidebarBadge { session_id = id, panel = panel }
 	end,
@@ -29,7 +30,8 @@ zeron.place {
 zeron.place {
 	at = ".session-card-end",
 	after = function(): Node
-		local id = zeron.need("session").id
+		local sess = zeron.context("session")
+		local id = if type(sess) == "table" and type(sess.id) == "string" then sess.id else ""
 		return Badges.CardRow { session_id = id }
 	end,
 }
@@ -38,7 +40,8 @@ zeron.place {
 zeron.place {
 	at = "#page-title",
 	after = function(): Node
-		local id = zeron.need("session").id
+		local sess = zeron.context("session")
+		local id = if type(sess) == "table" and type(sess.id) == "string" then sess.id else ""
 		local panel = zeron.context("panel")
 		return Badges.HeaderPill { session_id = id, panel = panel }
 	end,
@@ -66,13 +69,23 @@ zeron.menu {
 	label = zeron.s("menus.promote"),
 	run = function(ctx: any)
 		local sid = if type(ctx) == "table" and type(ctx.id) == "string" then ctx.id else nil
-		if not sid then
+		if not sid or sid == "" then
+			return
+		end
+		local existing = client.captain_of(sid)
+		if existing ~= nil then
+			client.focus_chat:set(sid)
+			pcall(zeron.open, { session = sid })
+			client.open_inspector(zeron.context("panel"), sid)
+			zeron.toast("Already a Captain — opened in Captain Deck")
 			return
 		end
 		local title = client.session_title(sid)
 		client.call("promote_captain", { chat_id = sid, name = title }):after(function()
+			client.focus_chat:set(sid)
 			zeron.toast(zeron.s("toast.promoted"))
-			zeron.open({ session = sid })
+			pcall(zeron.open, { session = sid })
+			client.open_inspector(zeron.context("panel"), sid)
 		end, function() end)
 	end,
 }
@@ -83,11 +96,43 @@ zeron.menu {
 	label = zeron.s("menus.review"),
 	run = function(ctx: any)
 		local sid = if type(ctx) == "table" and type(ctx.id) == "string" then ctx.id else nil
-		if not sid then
+		if not sid or sid == "" then
 			return
 		end
 		local title = client.session_title(sid)
 		local s = zeron.context_of("session", sid) or {}
+		local existing_worker = client.worker_of(sid)
+		local existing_captain = client.captain_of(sid)
+		local last_reply = ""
+		if existing_worker and type(existing_worker.last_reply) == "string" and existing_worker.last_reply ~= "" then
+			last_reply = existing_worker.last_reply
+		elseif existing_captain and type(existing_captain.digest) == "string" and existing_captain.digest ~= "" then
+			last_reply = existing_captain.digest
+		end
+
+		local ctx_lines: { string } = {
+			`Target Chat: "{title}" ({sid})`,
+		}
+		if type(s.project) == "string" and s.project ~= "" then
+			table.insert(ctx_lines, `Project: {s.project}`)
+		end
+		if type(s.branch) == "string" and s.branch ~= "" then
+			table.insert(ctx_lines, `Branch: {s.branch}`)
+		end
+		if type(s.cwd) == "string" and s.cwd ~= "" then
+			table.insert(ctx_lines, `Working Directory: {s.cwd}`)
+		end
+		if last_reply ~= "" then
+			table.insert(ctx_lines, `\nLatest Captured Summary / Reply:\n{last_reply}`)
+		end
+
+		local prompt = "Perform a thorough, read-only cross-harness code & solution review (do NOT edit files, stage, or commit unless explicitly asked):\n\n"
+			.. table.concat(ctx_lines, "\n")
+			.. "\n\nReview Checklist:\n"
+			.. "1. Inspect `git status`, `git diff`, and recent working tree changes in the repository.\n"
+			.. "2. Check for correctness, regressions, edge cases, type/lint issues, and adherence to project conventions.\n"
+			.. "3. Report all findings clearly categorized into **Critical** and **Minor** with exact file paths and line numbers, and conclude with a merge readiness verdict."
+
 		local reviewer_h = zeron.setting("default_reviewer_harness"):peek() or ""
 		client.call("promote_captain", { chat_id = sid, name = title }):after(function()
 			client.call("spawn_worker", {
@@ -97,10 +142,13 @@ zeron.menu {
 				harness = reviewer_h,
 				project = s.project,
 				device = s.device,
-				prompt = `Review the work done in chat "{title}" (read-only; do NOT edit files or commit unless asked). Inspect git status, git diff, and relevant files carefully. List Critical and Minor findings with file paths and line numbers, and state whether it is ready to merge.`,
+				cwd = s.cwd,
+				prompt = prompt,
 			}):after(function()
+				client.focus_chat:set(sid)
 				zeron.toast("Cross-harness reviewer spawned")
-				zeron.open({ session = sid })
+				pcall(zeron.open, { session = sid })
+				client.open_inspector(zeron.context("panel"), sid)
 			end, function() end)
 		end, function() end)
 	end,
@@ -112,6 +160,6 @@ ui.command {
 	title = "Open Captain Deck",
 	key = "cmd+shift+o",
 	run = function()
-		zeron.open({ page = { plugin = "captain-deck", id = "captain-deck" } })
+		pcall(zeron.open, { page = { plugin = "captain-deck", id = "captain-deck" } })
 	end,
 }

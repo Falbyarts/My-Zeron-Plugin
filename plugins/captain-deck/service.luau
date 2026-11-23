@@ -67,6 +67,16 @@ local function clip(s: any, max_len: number): string
 	return string.sub(t, 1, max_len - 1) .. "…"
 end
 
+local function current_device_id(): string?
+	local d = (zeron :: any).device
+	if type(d) == "table" then
+		return non_empty(d.id)
+	elseif type(d) == "string" then
+		return non_empty(d)
+	end
+	return nil
+end
+
 local function load_state(): any
 	local s = store:get()
 	if type(s) ~= "table" then
@@ -173,6 +183,10 @@ local function ensure_captain(chat_id: string, opts: any?): any
 		if o.digest ~= nil then
 			existing.digest = trim(o.digest)
 		end
+		existing.project = non_empty(o.project) or existing.project
+		existing.device = non_empty(o.device) or existing.device or current_device_id()
+		existing.cwd = non_empty(o.cwd) or existing.cwd
+		existing.fallback_project = non_empty(o.fallback_project) or existing.fallback_project
 		if type(o.auto_report) == "boolean" then
 			existing.auto_report = o.auto_report
 		end
@@ -203,6 +217,10 @@ local function ensure_captain(chat_id: string, opts: any?): any
 		mission = trim(o.mission or ""),
 		rules = trim(o.rules or ""),
 		digest = trim(o.digest or ""),
+		project = non_empty(o.project),
+		device = non_empty(o.device) or current_device_id(),
+		cwd = non_empty(o.cwd),
+		fallback_project = non_empty(o.fallback_project),
 		harness = harness,
 		model = model,
 		status = "idle",
@@ -250,6 +268,90 @@ local function add_needs_you_item(captain_id: string, title: string, detail: str
 	return item
 end
 
+local function safe_new_chat(opts: {
+	prompt: string,
+	device: string?,
+	project: string?,
+	fallback_project: string?,
+	harness: string?,
+	model: string?,
+	effort: string?,
+	cwd: string?,
+	captain_id: string?,
+}): any
+	local cap = if opts.captain_id then state.captains[opts.captain_id] else nil
+	local device = non_empty(opts.device) or (if cap then non_empty(cap.device) else nil) or current_device_id()
+	local project = non_empty(opts.project) or (if cap then non_empty(cap.project) else nil)
+	local fallback_project = non_empty(opts.fallback_project) or (if cap then non_empty(cap.fallback_project) else nil)
+	local cwd = non_empty(opts.cwd) or (if cap then non_empty(cap.cwd) else nil)
+	local harness = non_empty(opts.harness)
+	local model = non_empty(opts.model)
+	local effort = non_empty(opts.effort)
+
+	local last_err: any = nil
+
+	-- Attempt 1: primary attempt
+	local ok, res = pcall(function()
+		return zeron.new_chat({
+			prompt = opts.prompt,
+			device = device,
+			project = project,
+			harness = harness,
+			model = model,
+			effort = effort,
+			cwd = cwd,
+		}):await()
+	end)
+	if ok and type(res) == "table" and non_empty(res.chat) then
+		return res
+	end
+	last_err = if not ok then res else "Zeron did not return a new chat id"
+
+	-- Attempt 2 (Fallback Project): jika Attempt 1 gagal DAN project == nil DAN fallback_project ~= nil
+	if project == nil and fallback_project ~= nil then
+		project = fallback_project
+		ok, res = pcall(function()
+			return zeron.new_chat({
+				prompt = opts.prompt,
+				device = device,
+				project = project,
+				harness = harness,
+				model = model,
+				effort = effort,
+				cwd = cwd,
+			}):await()
+		end)
+		if ok and type(res) == "table" and non_empty(res.chat) then
+			return res
+		end
+		last_err = if not ok then res else "Zeron did not return a new chat id"
+	end
+
+	-- Attempt 3 (Fallback Model Default): jika masih gagal DAN model ~= nil
+	if model ~= nil then
+		local try_project = project or fallback_project
+		ok, res = pcall(function()
+			return zeron.new_chat({
+				prompt = opts.prompt,
+				device = device,
+				project = try_project,
+				harness = harness,
+				model = nil,
+				effort = effort,
+				cwd = cwd,
+			}):await()
+		end)
+		if ok and type(res) == "table" and non_empty(res.chat) then
+			return res
+		end
+		last_err = if not ok then res else "Zeron did not return a new chat id"
+	end
+
+	push_event("launch_failed", "Failed to start chat (" .. (harness or "default") .. "): " .. tostring(last_err), opts.captain_id, nil)
+	save_and_emit()
+	error(tostring(last_err), 0)
+end
+
 local function spawn_worker_internal(args: any): any
 	local captain_id = non_empty(args.captain_id)
 	if not captain_id then
@@ -264,15 +366,17 @@ local function spawn_worker_internal(args: any): any
 	local task = non_empty(args.task) or clip(raw_prompt, 72)
 	local full_prompt = build_worker_prompt(cap, role, task, raw_prompt)
 
-	local res = zeron.new_chat({
+	local res = safe_new_chat({
 		prompt = full_prompt,
 		device = non_empty(args.device),
 		project = non_empty(args.project),
+		fallback_project = non_empty(args.fallback_project),
 		harness = non_empty(args.harness),
 		model = non_empty(args.model),
 		effort = non_empty(args.effort),
 		cwd = non_empty(args.cwd),
-	}):await()
+		captain_id = captain_id,
+	})
 
 	local chat_id = if type(res) == "table" then non_empty(res.chat) else nil
 	if not chat_id then
@@ -296,6 +400,7 @@ local function spawn_worker_internal(args: any): any
 			model = non_empty(args.handoff.model),
 			effort = non_empty(args.handoff.effort),
 			project = non_empty(args.handoff.project) or non_empty(args.project),
+			fallback_project = non_empty(args.handoff.fallback_project) or non_empty(args.fallback_project),
 			device = non_empty(args.handoff.device) or non_empty(args.device),
 			cwd = non_empty(args.handoff.cwd) or non_empty(args.cwd),
 			prompt_template = trim(args.handoff.prompt_template),
@@ -344,15 +449,16 @@ local function create_captain_internal(args: any): any
 		full_prompt = `[Captain Mission: {mission}]\n\n{raw_prompt}`
 	end
 
-	local res = zeron.new_chat({
+	local res = safe_new_chat({
 		prompt = full_prompt,
 		device = non_empty(args.device),
 		project = non_empty(args.project),
+		fallback_project = non_empty(args.fallback_project),
 		harness = non_empty(args.harness),
 		model = non_empty(args.model),
 		effort = non_empty(args.effort),
 		cwd = non_empty(args.cwd),
-	}):await()
+	})
 
 	local chat_id = if type(res) == "table" then non_empty(res.chat) else nil
 	if not chat_id then
@@ -363,6 +469,10 @@ local function create_captain_internal(args: any): any
 		name = name,
 		mission = mission,
 		rules = rules,
+		project = non_empty(args.project),
+		device = non_empty(args.device),
+		fallback_project = non_empty(args.fallback_project),
+		cwd = non_empty(args.cwd),
 		auto_report = args.auto_report,
 		notify_attention = args.notify_attention,
 		harness = non_empty(args.harness),
@@ -424,6 +534,7 @@ local function trigger_handoff(worker: any, reply_text: string)
 		model = stage.model,
 		effort = stage.effort,
 		project = stage.project,
+		fallback_project = stage.fallback_project,
 		device = stage.device,
 		cwd = stage.cwd,
 		workflow_id = worker.workflow_id,
@@ -851,15 +962,71 @@ zeron.serve("clear_events", function()
 	return { ok = true }
 end)
 
+zeron.serve("prune_deleted", function(args: any)
+	local raw = if type(args) == "table" then args.valid_ids else nil
+	if type(raw) ~= "table" then
+		return { removed_captains = 0, removed_workers = 0 }
+	end
+
+	local valid: { [string]: boolean } = {}
+	for k, v in raw do
+		if type(k) == "string" and v == true then
+			valid[k] = true
+		elseif type(v) == "string" and v ~= "" then
+			valid[v] = true
+		end
+	end
+
+	local now = os.time()
+	local GRACE_SECONDS = 15
+	local removed_captains = 0
+	local removed_workers = 0
+
+	for cid, cap in state.captains do
+		local age = now - (tonumber(cap.created_at) or 0)
+		if not valid[cid] and age >= GRACE_SECONDS then
+			state.captains[cid] = nil
+			removed_captains += 1
+		end
+	end
+
+	for wid, w in state.workers do
+		local age = now - (tonumber(w.created_at) or 0)
+		local missing_self = not valid[wid] and age >= GRACE_SECONDS
+		local missing_parent = w.captain_id and not state.captains[w.captain_id] and not valid[w.captain_id]
+		if missing_self or missing_parent then
+			state.workers[wid] = nil
+			removed_workers += 1
+		end
+	end
+
+	if removed_captains > 0 or removed_workers > 0 then
+		push_event(
+			"pruned_ghosts",
+			`Cleaned up {removed_captains} deleted captain(s) and {removed_workers} worker(s)`,
+			nil,
+			nil
+		)
+		save_and_emit()
+	end
+
+	return {
+		removed_captains = removed_captains,
+		removed_workers = removed_workers,
+	}
+end)
+
 zeron.serve("launch_workflow", function(args: any)
-	local preset = non_empty(args and args.preset) or "build_review"
+	local preset = non_empty(args and args.kind) or non_empty(args and args.preset) or "build_review"
 	local task = trim(args and args.task or "")
 	if task == "" then
 		error("Task description is required", 0)
 	end
 	local workflow_id = next_id("wf")
 	local project = non_empty(args.project)
-	local device = non_empty(args.device)
+	local device = non_empty(args.device) or current_device_id()
+	local fallback_project = non_empty(args.fallback_project)
+	local cwd = non_empty(args.cwd)
 
 	-- Either reuse an existing Captain or launch a dedicated Captain thread.
 	local captain_id = non_empty(args.captain_id)
@@ -873,6 +1040,8 @@ zeron.serve("launch_workflow", function(args: any)
 			model = non_empty(args.captain_model) or non_empty(args.primary_model),
 			project = project,
 			device = device,
+			fallback_project = fallback_project,
+			cwd = cwd,
 			prompt = `You are the Captain coordinating workflow "{preset}" for:\n\n{task}\n\nCaptain Deck is spawning your crew right now and will auto-report each worker's completion here. Wait for crew reports, synthesize results, and flag any blockers with captain_update_digest.`,
 		})
 		captain_id = cap.chat_id
@@ -886,7 +1055,7 @@ zeron.serve("launch_workflow", function(args: any)
 		end
 		local review_prompt = "Review the work just completed for this task (read-only; do NOT edit files or commit unless asked):\n\nOriginal Task:\n"
 			.. task
-			.. "\n\nBuilder Report:\n{{REPORT}}\n\nInspect the actual files and git diff carefully. List each issue as Critical or Minor with exact file paths and line numbers, and state whether it is ready to merge."
+			.. "\n\nBuilder Report:\n{{REPORT}}\n\nInspect the actual files, git status, and git diff carefully. List each issue as Critical or Minor with exact file paths and line numbers, and state whether it is ready to merge."
 		local w = spawn_worker_internal({
 			captain_id = captain_id,
 			role = "builder",
@@ -895,7 +1064,9 @@ zeron.serve("launch_workflow", function(args: any)
 			harness = non_empty(args.primary_harness),
 			model = non_empty(args.primary_model),
 			project = project,
+			fallback_project = fallback_project,
 			device = device,
+			cwd = cwd,
 			workflow_id = workflow_id,
 			handoff = {
 				role = "reviewer",
@@ -903,7 +1074,9 @@ zeron.serve("launch_workflow", function(args: any)
 				harness = reviewer_harness,
 				model = non_empty(args.secondary_model),
 				project = project,
+				fallback_project = fallback_project,
 				device = device,
+				cwd = cwd,
 				prompt_template = review_prompt,
 			},
 		})
@@ -924,7 +1097,7 @@ zeron.serve("launch_workflow", function(args: any)
 			if i > 8 then
 				break
 			end
-			local w = spawn_worker_internal({
+			local ok, w_or_err = pcall(spawn_worker_internal, {
 				captain_id = captain_id,
 				role = `worker-{i}`,
 				task = clip(sub, 72),
@@ -932,38 +1105,78 @@ zeron.serve("launch_workflow", function(args: any)
 				harness = non_empty(args.primary_harness),
 				model = non_empty(args.primary_model),
 				project = project,
+				fallback_project = fallback_project,
 				device = device,
+				cwd = cwd,
 				workflow_id = workflow_id,
 			})
-			table.insert(spawned, w)
+			if ok then
+				table.insert(spawned, w_or_err)
+			else
+				add_needs_you_item(captain_id, "Worker spawn failed", tostring(w_or_err), nil)
+			end
+		end
+		if #spawned == 0 then
+			error("Failed to spawn any fanout workers", 0)
 		end
 	elseif preset == "compare" then
 		local h1 = non_empty(args.primary_harness)
 		local h2 = non_empty(args.secondary_harness)
-		local w1 = spawn_worker_internal({
+		local role_a = if h1 then `candidate-A:{h1}` else "candidate-A"
+		local role_b = if h2 then `candidate-B:{h2}` else "candidate-B"
+		local function build_compare_prompt(candidate_label: string, peer_label: string): string
+			return `[Compare 2 Agents Mode — {candidate_label} (running in parallel with {peer_label})]\n\n`
+				.. `Task:\n{task}\n\n`
+				.. `Safety & Comparison Guidelines:\n`
+				.. `1. Another candidate agent is evaluating/solving this same task in parallel.\n`
+				.. `2. Do NOT run destructive git commands (never run git reset --hard, git clean, git checkout --, or force-commit).\n`
+				.. `3. Keep any workspace edits minimal and well-isolated, or provide a complete, self-contained proposed patch if concurrent file edits would conflict.\n`
+				.. `4. Conclude your response with a structured comparison block:\n`
+				.. `   - Approach Summary\n`
+				.. `   - Files / Changes Proposed\n`
+				.. `   - Key Trade-offs & Verification`
+		end
+		local ok1, w1_or_err = pcall(spawn_worker_internal, {
 			captain_id = captain_id,
-			role = if h1 then `candidate:{h1}` else "candidate-A",
+			role = role_a,
 			task = clip(task, 72),
-			prompt = task,
+			prompt = build_compare_prompt("Candidate A", "Candidate B"),
 			harness = h1,
 			model = non_empty(args.primary_model),
 			project = project,
+			fallback_project = fallback_project,
 			device = device,
+			cwd = cwd,
 			workflow_id = workflow_id,
 		})
-		table.insert(spawned, w1)
-		local w2 = spawn_worker_internal({
+		if ok1 then
+			table.insert(spawned, w1_or_err)
+		else
+			add_needs_you_item(captain_id, "Worker spawn failed", tostring(w1_or_err), nil)
+		end
+
+		local ok2, w2_or_err = pcall(spawn_worker_internal, {
 			captain_id = captain_id,
-			role = if h2 then `candidate:{h2}` else "candidate-B",
+			role = role_b,
 			task = clip(task, 72),
-			prompt = task,
+			prompt = build_compare_prompt("Candidate B", "Candidate A"),
 			harness = h2,
 			model = non_empty(args.secondary_model),
 			project = project,
+			fallback_project = fallback_project,
 			device = device,
+			cwd = cwd,
 			workflow_id = workflow_id,
 		})
-		table.insert(spawned, w2)
+		if ok2 then
+			table.insert(spawned, w2_or_err)
+		else
+			add_needs_you_item(captain_id, "Worker spawn failed", tostring(w2_or_err), nil)
+		end
+
+		if #spawned == 0 then
+			error("Failed to spawn any comparison workers", 0)
+		end
 	end
 
 	push_event("workflow_launched", `Launched {preset} workflow ({#spawned} worker(s))`, captain_id, captain_id)

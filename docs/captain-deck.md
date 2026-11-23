@@ -55,7 +55,7 @@ Pilih salah satu cara berikut:
 1. Salin link rilis berikut:
 
    ```text
-   https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/captain-deck-v1.0.1
+   https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/captain-deck-v1.1.2
    ```
 
 2. Buka Zeron → **Settings** (ikon gerigi) → **Plugins** → klik **Install…**.
@@ -65,10 +65,10 @@ Pilih salah satu cara berikut:
 
 ### Cara 2 — Lewat File `.zeron-plugin`
 
-1. Buka [halaman rilis Captain Deck v1.0.1](https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/captain-deck-v1.0.1).
-2. Di bagian **Assets**, unduh `captain-deck-1.0.1.zeron-plugin` *(jangan diekstrak)*.
+1. Buka [halaman rilis Captain Deck v1.1.2](https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/captain-deck-v1.1.2).
+2. Di bagian **Assets**, unduh `captain-deck-1.1.2.zeron-plugin` *(jangan diekstrak)*.
 3. Buka Zeron → **Settings** → **Plugins** → klik **Install…** → klik **Choose file…**.
-4. Pilih file `captain-deck-1.0.1.zeron-plugin`.
+4. Pilih file `captain-deck-1.1.2.zeron-plugin`.
 5. Klik **Allow** / **Izinkan**, lalu buka **Captain Deck** di sidebar.
 
 ### Cara 3 — Langsung dari Repository GitHub *(Butuh Git)*
@@ -82,6 +82,18 @@ Pilih salah satu cara berikut:
    ```
 
 4. Klik **Allow** / **Izinkan**.
+
+---
+
+## Riwayat Pembaruan (Changelog)
+
+### v1.1.2
+- **Launch Tanpa Project (`No specific project` Fallback):** Menambahkan *3-tier fallback* otomatis (`device` aktif → `fallback_project` sesi/project aktif → model default harness) pada `safe_new_chat`, sehingga semua mode (**Build → Review**, **Parallel Swarm**, **Compare 2 Agents**, **New Captain**, dan **Spawn Worker**) dapat langsung diluncurkan meskipun opsi **Project** dibiarkan pada `No specific project`.
+- **Resilient Parallel Swarm & Compare:** Kegagalan pada salah satu worker paralel kini dicatat sebagai item **Needs You** tanpa membatalkan worker lain yang sudah berhasil di-spawn, serta batas waktu RPC peluncuran multi-agent diperpanjang menjadi 120 detik.
+
+### v1.1.1
+- **Fix Promise Chaining (`:after`) & Auto-Prune Ghost Chats:** Memperbaiki crash `attempt to index nil with 'after'` saat mempromosikan chat menjadi Captain, serta membersihkan Captain/Worker yang chat aslinya sudah dihapus di Zeron secara otomatis.
+- **Perapian Tata Letak Quick Mission Composer & Dropdown Searchable:** Menggunakan `Dropdown` *searchable* dengan `menu_width = 400` agar nama model AI panjang tidak terpotong, serta merapikan grid dan jarak antar kartu mengikuti gaya bawaan Settings Zeron.
 
 ---
 
