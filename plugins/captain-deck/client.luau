@@ -22,6 +22,7 @@ return function(zeron: any): any
 	local deck_open = ui.state("captain_deck.open", false)
 	local deck_dirty = ui.state("captain_deck.dirty", false)
 	local strip_dismissed = ui.state("captain_deck.strip_dismissed", {} :: { [string]: boolean })
+	local strip_height = ui.state("captain_deck.strip_h", 0)
 
 	M.state = state
 	M.harnesses = harnesses
@@ -31,6 +32,17 @@ return function(zeron: any): any
 	M.deck_open = deck_open
 	M.deck_dirty = deck_dirty
 	M.strip_dismissed = strip_dismissed
+	M.strip_height = strip_height
+
+	function M.set_strip_height(h: number)
+		local raw = if type(h) == "number" and h == h then h else 0
+		local clamped = math.clamp(raw, 0, 320)
+		local next_h = math.floor(clamped + 0.5)
+		local cur = tonumber(strip_height:peek()) or 0
+		if math.abs(cur - next_h) >= 1 then
+			strip_height:set(next_h)
+		end
+	end
 
 	function M.open_deck()
 		deck_open:set(true)
@@ -458,10 +470,37 @@ return function(zeron: any): any
 		return chain
 	end
 
+	function M.answer_input(chat_id: string, decision: string?, answers: any?, request: string?): any
+		return M.call("answer_input", {
+			chat_id = chat_id,
+			decision = decision,
+			answers = answers,
+			request = request,
+		})
+	end
+
 	-- Fast O(1) lookup helpers for sidebar/header badges.
 	function M.captain_of(chat_id: string): any?
 		local s = state:get()
 		return if s and s.captains then s.captains[chat_id] else nil
+	end
+
+	function M.captains_list(): { any }
+		local s = state:get()
+		local out: { any } = {}
+		if not s or type(s.captains) ~= "table" then
+			return out
+		end
+		for _, cap in s.captains do
+			if type(cap) == "table" then
+				table.insert(out, cap)
+			end
+		end
+		table.sort(out, function(a: any, b: any): boolean
+			return (tonumber(a.updated_at) or tonumber(a.created_at) or 0)
+				> (tonumber(b.updated_at) or tonumber(b.created_at) or 0)
+		end)
+		return out
 	end
 
 	function M.worker_of(chat_id: string): any?
@@ -486,98 +525,158 @@ return function(zeron: any): any
 		return out
 	end
 
-	function M.crew_summary(captain_id: string): { total: number, running: number, attention: number, done: number }
+	function M.crew_summary(captain_id: string): {
+		total: number,
+		running: number,
+		completed: number,
+		done: number,
+		awaiting: number,
+		errored: number,
+		attention: number,
+	}
 		local s = state:get()
-		local total, running, attention, done = 0, 0, 0, 0
-		if s and s.workers then
+		local total, running, completed, awaiting, errored, needs_you_count = 0, 0, 0, 0, 0, 0
+		if s and type(s.workers) == "table" then
 			for _, w in s.workers do
 				if w.captain_id == captain_id then
 					total += 1
 					if w.status == "running" then
 						running += 1
-					elseif w.status == "awaiting_input" or w.status == "errored" or w.status == "limited" then
-						attention += 1
+					elseif w.status == "awaiting_input" then
+						awaiting += 1
+					elseif w.status == "errored" or w.status == "limited" then
+						errored += 1
 					elseif w.status == "completed" then
-						done += 1
+						completed += 1
 					end
 				end
 			end
 		end
-		local cap = if s and s.captains then s.captains[captain_id] else nil
-		if cap and type(cap.needs_you) == "table" then
-			for _, item in cap.needs_you do
-				if not item.resolved then
-					attention += 1
-				end
-			end
-		end
-		return { total = total, running = running, attention = attention, done = done }
-	end
-
-	function M.attention_items(): { any }
-		local s = state:get()
-		local out: { any } = {}
-		if not s then
-			return out
-		end
-		for _, w in (s.workers or {}) do
-			if w.status == "awaiting_input" or w.status == "errored" or w.status == "limited" then
-				local cap = (s.captains or {})[w.captain_id]
-				table.insert(out, {
-					kind = "worker",
-					id = `w:{w.chat_id}`,
-					chat_id = w.chat_id,
-					captain_id = w.captain_id,
-					captain_name = if cap then cap.name else "Captain",
-					role = w.role,
-					harness = w.harness,
-					status = w.status,
-					title = w.task or w.role,
-					detail = w.last_error or "",
-					at = w.updated_at or 0,
-				})
-			end
-		end
-		for cid, cap in (s.captains or {}) do
-			if cap.status == "awaiting_input" or cap.status == "errored" or cap.status == "limited" then
-				table.insert(out, {
-					kind = "captain_status",
-					id = `cs:{cid}`,
-					chat_id = cid,
-					captain_id = cid,
-					captain_name = cap.name,
-					role = "captain",
-					harness = cap.harness,
-					status = cap.status,
-					title = `Captain {cap.name}`,
-					detail = cap.mission or "",
-					at = cap.updated_at or 0,
-				})
+		local cap = if s and type(s.captains) == "table" then s.captains[captain_id] else nil
+		if cap then
+			if cap.status == "awaiting_input" then
+				awaiting += 1
+			elseif cap.status == "errored" or cap.status == "limited" then
+				errored += 1
 			end
 			if type(cap.needs_you) == "table" then
 				for _, item in cap.needs_you do
-					if not item.resolved then
-						table.insert(out, {
-							kind = "escalation",
-							id = item.id,
-							item_id = item.id,
-							chat_id = item.worker_chat or cid,
-							captain_id = cid,
-							captain_name = cap.name,
-							role = "captain",
-							harness = cap.harness,
-							status = "awaiting_input",
-							title = item.title,
-							detail = item.detail or "",
-							at = item.created_at or 0,
-						})
+					if type(item) == "table" and not item.resolved then
+						needs_you_count += 1
 					end
 				end
 			end
 		end
-		table.sort(out, function(a: any, b: any): boolean
-			return (a.at or 0) > (b.at or 0)
-		end)
+		local attention = needs_you_count + awaiting + errored
+		return {
+			total = total,
+			running = running,
+			completed = completed,
+			done = completed,
+			awaiting = awaiting,
+			errored = errored,
+			attention = attention,
+		}
+	end
+
+	function M.attention_items(captain_id: string?): { any }
+		if type(captain_id) ~= "string" or captain_id == "" then
+			return M.all_attention_items()
+		end
+		local out: { any } = {}
+		local cap = M.captain_of(captain_id)
+		if not cap then
+			return out
+		end
+		local cap_name = non_empty(cap.name) or "Captain"
+		local crew = M.crew_of(captain_id)
+
+		-- 1. Captain awaiting_input
+		if cap.status == "awaiting_input" then
+			local pi = if type(cap.pending_input) == "table" then cap.pending_input else nil
+			local pi_title = if pi then non_empty(pi.title) else nil
+			local pi_detail = if pi then non_empty(pi.detail) else nil
+			local cap_mission = non_empty(cap.mission)
+			table.insert(out, {
+				kind = "awaiting_input",
+				id = "input:" .. captain_id,
+				captain_id = captain_id,
+				captain_name = cap_name,
+				chat_id = captain_id,
+				role = "Captain",
+				harness = cap.harness,
+				status = "awaiting_input",
+				title = pi_title or "Permission / input needed",
+				detail = pi_detail or cap_mission or "Captain is waiting for your approval or reply.",
+				request = if pi then pi.request else nil,
+				at = (if pi then tonumber(pi.at) else nil) or tonumber(cap.updated_at) or 0,
+			})
+		end
+
+		-- 2. Workers awaiting_input
+		for _, w in crew do
+			if w.status == "awaiting_input" then
+				local pi = if type(w.pending_input) == "table" then w.pending_input else nil
+				local pi_title = if pi then non_empty(pi.title) else nil
+				local pi_detail = if pi then non_empty(pi.detail) else nil
+				local w_role = non_empty(w.role) or "worker"
+				local w_task = non_empty(w.task)
+				table.insert(out, {
+					kind = "awaiting_input",
+					id = "input:" .. w.chat_id,
+					captain_id = captain_id,
+					captain_name = cap_name,
+					chat_id = w.chat_id,
+					role = w_role,
+					harness = w.harness,
+					status = "awaiting_input",
+					title = pi_title or ("Permission / input · " .. w_role),
+					detail = pi_detail or w_task or "Worker is waiting for your approval or reply.",
+					request = if pi then pi.request else nil,
+					at = (if pi then tonumber(pi.at) else nil) or tonumber(w.updated_at) or 0,
+				})
+			end
+		end
+
+		-- 3. Unresolved needs_you items
+		if type(cap.needs_you) == "table" then
+			for _, item in cap.needs_you do
+				if type(item) == "table" and not item.resolved then
+					local w_chat = if type(item.worker_chat) == "string" and item.worker_chat ~= ""
+						then item.worker_chat
+						else nil
+					local linked_worker = if w_chat then M.worker_of(w_chat) else nil
+					local item_role = if linked_worker then (non_empty(linked_worker.role) or "worker") else "Captain"
+					table.insert(out, {
+						kind = "needs_you",
+						id = item.id,
+						item_id = item.id,
+						captain_id = captain_id,
+						captain_name = cap_name,
+						chat_id = w_chat or captain_id,
+						role = item_role,
+						harness = if linked_worker then linked_worker.harness else cap.harness,
+						status = "awaiting_input",
+						title = non_empty(item.title) or "Needs your input",
+						detail = trim(item.detail or ""),
+						at = tonumber(item.created_at) or 0,
+					})
+				end
+			end
+		end
+
+		return out
+	end
+
+	function M.all_attention_items(): { any }
+		local out: { any } = {}
+		for _, cap in M.captains_list() do
+			if type(cap) == "table" and type(cap.chat_id) == "string" and cap.chat_id ~= "" then
+				for _, item in M.attention_items(cap.chat_id) do
+					table.insert(out, item)
+				end
+			end
+		end
 		return out
 	end
 

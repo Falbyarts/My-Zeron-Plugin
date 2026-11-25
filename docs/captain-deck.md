@@ -26,13 +26,13 @@ Terinspirasi dari alur kerja **Capy Captains** (Captain jangka panjang + Attenti
    - Pemilih **Project** berada tepat di atas baris agen/model, dilengkapi *fallback* otomatis untuk `No specific project`.
    - **Dukungan gambar & file referensi** pada **Launch**, **Spawn Worker**, dan **Steer**: drag & drop file/gambar langsung ke area prompt atau tambahkan via path / **Paste Clipboard**, lengkap dengan thumbnail preview chip.
 
-4. **Composer Orchestrator Bar, Crew Inspector Ramping & Sidebar Badges Adaptif Tema**
-   - **Composer Orchestrator Bar:** saat berada di chat Captain/Worker, tampil bar ringkas di atas composer berisi status aktif, alert *Needs You* atau pill worker *running*, serta akses cepat `Deck`, `Inspector`, dan `Hide` (bisa dimunculkan kembali 1-klik lewat restore pill mini di kanan atas composer).
-   - **Sidebar Badges Adaptif Tema:** badge **Captain** selalu mengikuti warna aksen Zeron (`$accent`), sementara badge **Worker** menggunakan kontras terbalik native (`$zeron.primary.bg` / `$zeron.primary.text`) agar jelas terbaca di mode gelap maupun terang.
-   - **Side Panel Crew Inspector:** tampilan ramping fokus pada monitoring live, *Live Digest collapsible*, alert *Needs You*, dan aksi cepat *Steer* / *Spawn Worker* / *Open Deck*.
+4. **Composer Orchestrator Bar Anti-Overlap, Crew Inspector Ramping & Judul Worker Ter-highlight di Sidebar**
+   - **Composer Orchestrator Bar:** saat berada di chat Captain/Worker, tampil bar ringkas di atas composer dengan **in-flow bottom clearance** otomatis (sehingga baris streaming terbaru paling bawah dan dialog persetujuan tidak tertutup kartu), animasi status native Zeron (`working` / `input` / `failed` / `done`), panel **Permissions & Needs You** langsung di dalam kartu (`Allow` / `Deny` / `Open` / `Resolve`), serta akses cepat `Deck`, `Inspector`, dan `Hide` (bisa dimunculkan kembali 1-klik lewat restore pill mini).
+   - **Sidebar Judul Worker & Badge Captain Adaptif Tema:** badge **Captain** selalu mengikuti warna aksen Zeron (`$accent`), sementara pada baris **Worker**, role worker ter-highlight (`↳ researcher`, `↳ builder`, `↳ verifier`) langsung menggantikan judul mentah yang sempit (`ui.change` pada `.session-title`) dengan kontras terbalik native (`$zeron.primary.bg` / `$zeron.primary.text`) sehingga rapi, rata kiri, dan jelas di mode gelap maupun terang.
+   - **Side Panel Crew Inspector:** tampilan ramping fokus pada monitoring live, panel **Permissions & Needs You**, *Live Digest collapsible*, dan aksi cepat *Steer* / *Spawn Worker* / *Open Deck*.
 
-5. **Attention Digest (*"Needs You"*) & 6 Native Agent Tools (`zeron.tool`)**
-   - Service latar belakang (`service.luau`) mendengarkan event native Zeron (`turn.started`, `turn.finished`, `turn.errored`, `chat.awaiting_input`, `chat.input_answered`) secara real-time, auto-report ke Captain, dan memberi notifikasi hanya saat butuh perhatianmu.
+5. **Permissions & Needs You (`chat.awaiting_input`), 6 Native Agent Tools & Skill Manual (`captain-deck-orchestrator`)**
+   - Service latar belakang (`service.luau`) mendengarkan event native Zeron (`turn.started`, `turn.finished`, `turn.errored`, `chat.awaiting_input`, `chat.input_answered`) secara real-time, menangkap permintaan persetujuan/input agent untuk ditampilkan langsung di kartu conversation, Inspector, dan Deck (`Allow` / `Deny` lewat `zeron.answer` atau buka chat), auto-report ke Captain, dan mengirim notifikasi hanya saat butuh perhatianmu.
    - Setiap agent di harness mana pun otomatis mendapat 6 tool orkestrasi:
      - `captain_status` — baca daftar Captain, Crew, status, laporan terakhir, rules, digest, dan item *Needs You*.
      - `captain_promote` — promosikan chat menjadi Captain.
@@ -40,6 +40,7 @@ Terinspirasi dari alur kerja **Capy Captains** (Captain jangka panjang + Attenti
      - `captain_message_worker` — kirim pesan `queue` atau `steer` ke worker/Captain.
      - `captain_attach_worker` — kaitkan chat yang sudah ada sebagai worker di bawah Captain.
      - `captain_update_digest` — perbarui mission/rules/digest atau eskalasi item **Needs You** ke manusia.
+   - Tersedia skill manual-trigger **`captain-deck-orchestrator`** ([`skills/captain-deck-orchestrator/SKILL.md`](../skills/captain-deck-orchestrator/SKILL.md)) agar agent langsung paham cara memakai ke-6 tool orkestrator tanpa menebak-nebak, dan **hanya aktif ketika diminta secara eksplisit** (tidak mengganggu delegasi subagent biasa).
 
 ---
 
@@ -60,7 +61,7 @@ Pilih salah satu cara berikut:
 1. Salin link rilis berikut:
 
    ```text
-   https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/captain-deck-v1.2.0
+   https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/captain-deck-v1.2.1
    ```
 
 2. Buka Zeron → **Settings** (ikon gerigi) → **Plugins** → klik **Install…**.
@@ -70,10 +71,10 @@ Pilih salah satu cara berikut:
 
 ### Cara 2 — Lewat File `.zeron-plugin`
 
-1. Buka [halaman rilis Captain Deck v1.2.0](https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/captain-deck-v1.2.0).
-2. Di bagian **Assets**, unduh `captain-deck-1.2.0.zeron-plugin` *(jangan diekstrak)*.
+1. Buka [halaman rilis Captain Deck v1.2.1](https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/captain-deck-v1.2.1).
+2. Di bagian **Assets**, unduh `captain-deck-1.2.1.zeron-plugin` *(jangan diekstrak)*.
 3. Buka Zeron → **Settings** → **Plugins** → klik **Install…** → klik **Choose file…**.
-4. Pilih file `captain-deck-1.2.0.zeron-plugin`.
+4. Pilih file `captain-deck-1.2.1.zeron-plugin`.
 5. Klik **Allow** / **Izinkan**, lalu ketik **`/captain`** di composer atau tekan `Ctrl+Shift+O` (`Cmd+Shift+O`).
 
 ### Cara 3 — Langsung dari Repository GitHub *(Butuh Git)*
@@ -91,6 +92,13 @@ Pilih salah satu cara berikut:
 ---
 
 ## Riwayat Pembaruan (Changelog)
+
+### v1.2.1
+- **Anti-Overlap Streaming Transcript:** Menambahkan *in-flow bottom clearance spacer* pada `#chat-session` yang mengikuti tinggi live **Composer Orchestrator Bar**, serta menaikkan batas tinggi composer hingga `720px` agar baris streaming terbaru paling bawah dan prompt persetujuan native tidak pernah tertutup kartu.
+- **Animasi Status Native Zeron di Kartu Conversation:** Menghapus ikon grup statis di kartu conversation Captain/Worker (tetap dipertahankan di right-bar Inspector) dan menggantinya dengan animasi status bawaan Zeron (`@ds/status`: ring berputar saat *working*, *input*, *failed*, *done*).
+- **Permissions & Needs You Langsung di Kartu, Inspector & Deck:** Menangkap detail `chat.awaiting_input` dan menambahkan RPC `answer_input` (`zeron.answer`) sehingga permintaan *human touch* / persetujuan agent tampil jelas di dalam kartu conversation, right-bar Crew Inspector, dan floating Captain Deck lengkap dengan tombol cepat `Allow` / `Deny` / `Open` / `Resolve`.
+- **Judul Worker Ter-highlight & Rata di Sidebar:** Mengganti `.session-title` (`ui.change`) khusus baris worker agar role worker ter-highlight (`↳ researcher`, `↳ builder`, `↳ verifier`) menjadi judul utamanya tanpa teks terpotong `[Captain Rul...` dan tanpa label kanan yang tidak rata; prompt worker baru juga diawali header `[Worker: role] task`.
+- **Skill Manual-Trigger `captain-deck-orchestrator`:** Menambahkan [`skills/captain-deck-orchestrator/SKILL.md`](../skills/captain-deck-orchestrator/SKILL.md) sebagai panduan terstruktur penggunaan ke-6 tool `captain_*` yang hanya aktif saat diminta secara eksplisit.
 
 ### v1.2.0
 - **Floating Captain Deck Solid di Atas Composer & Slash Command `/captain`:** Menghapus halaman sidebar agar sidebar tetap rapi; Captain Deck kini dibuka sebagai *floating card* solid opaque (`$popover.bg`) tepat di atas composer lewat `/captain` (ter-scroll alami bersama daftar command `/` Zeron, plus pemicu keyboard `/captain ` + spasi) atau `Ctrl+Shift+O` (`Cmd+Shift+O`), lengkap dengan animasi border aksen berputar ringan berbasis GPU WGSL dan *smart click-outside dismiss* yang melindungi draft belum selesai.
@@ -126,7 +134,8 @@ Pilih salah satu cara berikut:
 
 | Izin | Kegunaan |
 | --- | --- |
-| `ui.add` | Menampilkan badge di sidebar, baris hover card, floating card & orchestrator bar di atas composer, slash command `/captain`, dan menu klik-kanan chat. |
+| `ui.add` | Menampilkan baris hover card, floating card & orchestrator bar di atas composer, *stream clearance spacer*, slash command `/captain`, dan menu klik-kanan chat. |
+| `ui.change` | Mengganti judul baris chat di sidebar (`.session-title`) agar baris worker menampilkan role ter-highlight sebagai judul rapi dan baris Captain menampilkan judul + badge aksen. |
 | `panel.tabs` | Membuka tab **Crew Inspector** di side panel chat. |
 | `navigate` | Lompat langsung ke chat Captain atau worker dalam satu klik. |
 | `draft` | Membaca teks draft composer secara lokal untuk mendeteksi pemicu slash command `/captain`. |

@@ -6,6 +6,7 @@
   "name": "Captain Deck",
   "permissions": [
     "ui.add",
+    "ui.change",
     "panel.tabs",
     "navigate",
     "draft",
@@ -97,18 +98,18 @@
   "signature": {
     "files": {
       "README.md": "1af0d590b66ab209c8e844d934d7dd1533a1e38276bd3ba3456aad492cba3c73",
-      "badges.luau": "39230f89d1218fccdad9534f9ae89049a8a07e6bbdc987df96757662113bedd9",
-      "client.luau": "e2f5e15bf19043de9d9088153f28efee951f6c01b2bff4f6e3136476b998fea4",
-      "deck.luau": "a64ee90569223ca0c0108ba7c7ed5861d4f8529bd71e04638153e6ab14d7f6fe",
+      "badges.luau": "65eb76101587dc71520fc2fdf87e306b13077be044566391a8efbbf42bea2a4a",
+      "client.luau": "bb135f9b469dc3ece74cc77946058c490193166b86e731dbf5cdf90240fb6f3d",
+      "deck.luau": "3cbe55dd0a45b8212892c50ea7fee3e3e123110447e87581d6e7e1e16c608e0a",
       "icon.svg": "8c2ee2ea04824d1b67b5ec8124fd007d0aa0aa25cf592f13e574ae1abf2bc735",
-      "init.luau": "d6eae48478910ac335b0ce92f804e447315015f0aec50cf00720f0f2554064de",
-      "inspector.luau": "384438e18bc1e4fade60b9f357ec20f0225e735c3226e5cfce834bcf87482dc2",
-      "locales/en.json": "fb2e089593738807bf90d9d1449e64a82b9ecc2d416df3ec8330f928d18fcd49",
-      "service.luau": "5b7751ba0d67add1ace47685d2d0c349f9314303babe8da7376d86210a38c4cf",
+      "init.luau": "97b70ce68c0ddc127ff5e1f37a36a7259c390dfcb3a41dee2e446662b7bf78ec",
+      "inspector.luau": "44f85a5157930f50a13f2acc6ca8b7cdac6365d84200f1af93c29c38040c89d3",
+      "locales/en.json": "c9f0805f335fc56b335878c192445df8070c3ada9b6943604c991262eca98331",
+      "service.luau": "a64ad325afa0f1104d01ea680a823fcc2c53996b63424608ed479c33e86bed36",
       "zeron.luau": "178b79b55566c9643b26181539b8e1348482179a169da98ba384cd66f3f8a483"
     },
     "key": "qe0KcCOqgglmdlcmQdH38lS8wk-P2wEL0lS_5m7L9II",
-    "sig": "FS2ZqONPTow8qsQL5JFD24DuVhxvC3-Srf8RiRHmJxNpxzYEWOv6EsIOrIzt8rLu6cS9BdO-0HxT8cuqjfBgDw"
+    "sig": "xY2eM3Ffv_lIUYusCBNhRkO_hAUOdLARXDl-z5P0LHHVUXRoN_GhlOC0FAc_-jyjvtwkxFnI_kID78mSwlwqCw"
   },
   "tools": [
     {
@@ -340,5 +341,10 @@
       "name": "captain_update_digest"
     }
   ],
-  "version": "1.2.0"
+  "ui": {
+    "change": [
+      ".session-title"
+    ]
+  },
+  "version": "1.2.1"
 }

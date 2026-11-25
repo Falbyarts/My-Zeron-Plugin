@@ -80,7 +80,10 @@
       "new_short": "New"
     },
     "attention": {
-      "title": "Needs You",
+      "title": "Permissions & Needs You",
+      "permission_role": "Permission / Input · {role}",
+      "allow": "Allow",
+      "deny": "Deny",
       "open_chat": "Open",
       "resolve": "Resolve",
       "awaiting_input": "Awaiting your input or approval",
@@ -215,6 +218,9 @@
     "cleared_all": "Cleared all orchestrations",
     "max_attachments": "Maximum 8 attachments allowed",
     "clipboard_empty": "Clipboard does not contain a file path",
-    "enter_path": "Enter or paste a file path first"
+    "enter_path": "Enter or paste a file path first",
+    "approved": "Approved",
+    "denied": "Denied",
+    "opened_to_respond": "Opened chat to respond"
   }
 }

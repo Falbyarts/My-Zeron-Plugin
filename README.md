@@ -12,7 +12,7 @@ Semua plugin di repository ini gratis, *open-source*, dan berjalan **sepenuhnya 
 
 | Plugin | Ringkasan | Versi | Rilis & Panduan |
 | --- | --- | --- | --- |
-| **Captain Deck** | Dek kontrol orkestrasi multi-agent *native* Zeron yang **100% harness-agnostic** (Pi, Claude Code, Codex, OpenCode, Antigravity, Hermes, Cursor, ACP). Hadir sebagai **floating card solid** tepat di atas composer (dipicu lewat `/captain` atau `Ctrl+Shift+O`), lengkap dengan **Launch Workflows** (`Build → Review`, `Parallel Swarm`, `Compare 2 Agents`, `New Captain`), **lampiran gambar/file referensi**, **Captains & Crew Trees**, **Clear All**, **Attention Digest (*Needs You*)**, **Composer Orchestrator Bar**, **Crew Inspector**, dan 6 native agent tools. | `1.2.0` | [Panduan lengkap](docs/captain-deck.md) · [Halaman Rilis](https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/captain-deck-v1.2.0) |
+| **Captain Deck** | Dek kontrol orkestrasi multi-agent *native* Zeron yang **100% harness-agnostic** (Pi, Claude Code, Codex, OpenCode, Antigravity, Hermes, Cursor, ACP). Hadir sebagai **floating card solid** tepat di atas composer (dipicu lewat `/captain` atau `Ctrl+Shift+O`), lengkap dengan **Launch Workflows** (`Build → Review`, `Parallel Swarm`, `Compare 2 Agents`, `New Captain`), **lampiran gambar/file referensi**, **Captains & Crew Trees**, **Clear All**, **Permissions & Needs You** (*Allow/Deny* langsung di kartu/Inspector/Deck), **Composer Orchestrator Bar** anti-overlap streaming, judul worker ter-highlight di sidebar, **Crew Inspector**, 6 native agent tools, dan skill manual `captain-deck-orchestrator`. | `1.2.1` | [Panduan lengkap](docs/captain-deck.md) · [Halaman Rilis](https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/captain-deck-v1.2.1) |
 | **Heatmap-LocLabs** | Menampilkan heatmap commit Git lokal selama setahun terakhir tepat di bawah kotak chat **New Chat** (responsif mengikuti lebar kotak composer), lengkap dengan indikator scope aktif di header, warna aksen native yang sinkron di mode gelap/terang, kartu detail commit interaktif (`+N more`) saat hover, tombol **refresh**, serta pengaturan **Settings → Plugins** untuk tampil/sembunyi dan cakupan commit (**All folders** atau **Selected project**). | `1.4.2` | [Panduan lengkap](docs/heatmap-loclabs.md) · [Halaman Rilis](https://github.com/Falbyarts/My-ZgX-Plugin/releases/tag/heatmap-loclabs-v1.4.2) |
 
 ---
@@ -102,8 +102,10 @@ Masih menemukan kendala? Silakan buat **Issue** di repository ini dengan menyert
 
 ```text
 plugins/
-  captain-deck/          Plugin Captain Deck v1.2.0 (sudah ditandatangani & siap dipasang)
+  captain-deck/          Plugin Captain Deck v1.2.1 (sudah ditandatangani & siap dipasang)
   heatmap-loclabs/       Plugin Heatmap-LocLabs v1.4.2 (sudah ditandatangani & siap dipasang)
+skills/
+  captain-deck-orchestrator/  Skill panduan manual-trigger untuk agent orkestrator Captain Deck
 docs/
   captain-deck.md        Panduan lengkap penggunaan Captain Deck
   heatmap-loclabs.md     Panduan lengkap penggunaan Heatmap-LocLabs

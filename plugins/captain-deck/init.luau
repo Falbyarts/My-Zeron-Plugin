@@ -76,15 +76,35 @@ local DECK_CARD_H = 440
 local DOCK_GAP = 10
 
 local left_edge = ui.ref()
+local show_composer_bar = zeron.setting("show_composer_bar")
 
--- 1. Sidebar row badge (`.session-title` after)
+local function report_strip_height(h: number)
+	if type(client.set_strip_height) == "function" then
+		pcall(client.set_strip_height, h)
+	end
+end
+
+local function read_strip_height(): number
+	if client.strip_height ~= nil and type(client.strip_height.get) == "function" then
+		local ok, val = pcall(function(): any
+			return client.strip_height:get()
+		end)
+		if ok and type(val) == "number" then
+			return val
+		end
+	end
+	return 0
+end
+
+-- 1. Sidebar row title replacement (`.session-title` replace, fill = true)
 zeron.place {
 	at = ".session-title",
-	after = function(): Node
+	fill = true,
+	replace = function(): Node
 		local sess = zeron.context("session")
 		local id = if type(sess) == "table" and type(sess.id) == "string" then sess.id else ""
 		local panel = zeron.context("panel")
-		return Badges.SidebarBadge { session_id = id, panel = panel }
+		return Badges.SidebarTitle { session_id = id, panel = panel }
 	end,
 }
 
@@ -178,7 +198,7 @@ zeron.place {
 
 		local function update_height(raw_h: any)
 			if type(raw_h) == "number" and raw_h >= 36 then
-				local h = math.clamp(math.floor(raw_h + 0.5), 40, 480)
+				local h = math.clamp(math.floor(raw_h + 0.5), 40, 720)
 				if math.abs(measured_h:peek() - h) >= 1 then
 					measured_h:set(h)
 				end
@@ -317,6 +337,8 @@ zeron.place {
 			return math.clamp(max_avail, 240, DECK_CARD_H)
 		end
 
+		local strip_ref = ui.ref()
+
 		local function dock_mode(): string
 			if not is_chat_route() then
 				return "hidden"
@@ -326,6 +348,67 @@ zeron.place {
 			end
 			return "strip"
 		end
+
+		local function should_reserve_strip_space(): boolean
+			if dock_mode() ~= "strip" then
+				return false
+			end
+			if show_composer_bar:get() == false then
+				return false
+			end
+			local sid = active_sid()
+			if sid == "" then
+				return false
+			end
+			if client.is_strip_dismissed(sid) == true then
+				return false
+			end
+			return client.captain_of(sid) ~= nil or client.worker_of(sid) ~= nil
+		end
+
+		local function sync_strip_size(size: any?)
+			if not should_reserve_strip_space() then
+				report_strip_height(0)
+				return
+			end
+			local raw_h: any = nil
+			if type(size) == "table" then
+				if type(size.h) == "number" then
+					raw_h = size.h
+				elseif type(size.height) == "number" then
+					raw_h = size.height
+				end
+			end
+			if type(raw_h) ~= "number" then
+				local el = edge_elem(strip_ref)
+				if el ~= nil then
+					if type(el.h) == "number" then
+						raw_h = el.h
+					elseif type(el.height) == "number" then
+						raw_h = el.height
+					end
+				end
+			end
+			if type(raw_h) == "number" and raw_h > 0 then
+				report_strip_height(math.clamp(math.floor(raw_h + 0.5), 0, 420))
+			else
+				report_strip_height(0)
+			end
+		end
+
+		ui.effect(function()
+			if not should_reserve_strip_space() then
+				report_strip_height(0)
+			else
+				ui.after(0, function()
+					sync_strip_size(nil)
+				end)
+			end
+		end)
+
+		ui.on_cleanup(function()
+			report_strip_height(0)
+		end)
 
 		return ui.div {
 			ref = right_edge,
@@ -434,12 +517,49 @@ zeron.place {
 							inner_card,
 						}
 					end
-					return Badges.ComposerOrchestratorStrip {
-						session_id = active_sid,
-						panel = active_panel,
+					return ui.div {
+						ref = strip_ref,
+						w_full = true,
+						pointer_events = "none",
+						on_resize = function(size: any)
+							sync_strip_size(size)
+						end,
+						Badges.ComposerOrchestratorStrip {
+							session_id = active_sid,
+							panel = active_panel,
+						},
 					}
 				end, { w_full = true, pointer_events = "none" }),
 			},
+		}
+	end,
+}
+
+-- 4d. In-flow bottom clearance spacer after `#chat-session` so the floating
+-- ComposerOrchestratorStrip never overlaps live streaming transcript lines.
+zeron.place {
+	at = "#chat-session",
+	after = function(): Node
+		local route = zeron.live("route")
+		return ui.div {
+			id = "captain-deck-stream-clearance",
+			w_full = true,
+			shrink = 0,
+			pointer_events = "none",
+			h = function(): number
+				local where = route()
+				if type(where) ~= "table" or where.name ~= "session" then
+					return 0
+				end
+				if client.deck_open:get() == true then
+					return 0
+				end
+				local strip_h = read_strip_height()
+				if strip_h > 0 then
+					return strip_h + DOCK_GAP + 10
+				end
+				return 0
+			end,
 		}
 	end,
 }

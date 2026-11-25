@@ -253,16 +253,16 @@ end
 
 local function build_worker_prompt(captain: any?, role: string, task: string, prompt: string): string
 	local parts: { string } = {}
+	local clean_role = non_empty(role) or "worker"
+	local clean_task = non_empty(task)
+	if clean_task then
+		local one_line_task = trim((string.gsub(clean_task, "%s+", " ")))
+		table.insert(parts, `[Worker: {clean_role}] {one_line_task}`)
+	else
+		table.insert(parts, `[Worker: {clean_role}]`)
+	end
 	if captain and non_empty(captain.rules) then
 		table.insert(parts, `[Captain Rules — {captain.name or "Captain"}]\n{trim(captain.rules)}`)
-	end
-	if non_empty(role) or non_empty(task) then
-		local head = `[Assigned Role: {if non_empty(role) then role else "worker"}`
-		if non_empty(task) then
-			head ..= ` | Task: {task}`
-		end
-		head ..= "]"
-		table.insert(parts, head)
 	end
 	table.insert(parts, trim(prompt))
 	return table.concat(parts, "\n\n")
@@ -679,12 +679,14 @@ zeron.on("turn.started", function(e: any)
 		worker.started_at = now
 		worker.updated_at = now
 		worker.last_error = nil
+		worker.pending_input = nil
 		changed = true
 	end
 	local cap = state.captains[chat_id]
 	if cap then
 		cap.status = "running"
 		cap.updated_at = now
+		cap.pending_input = nil
 		changed = true
 	end
 	if changed then
@@ -704,6 +706,7 @@ zeron.on("turn.finished", function(e: any)
 	local cap = state.captains[chat_id]
 	if cap then
 		cap.status = if outcome == "completed" then "idle" else outcome
+		cap.pending_input = nil
 		cap.updated_at = now
 		if outcome == "errored" or outcome == "limited" then
 			push_event("captain_error", `Captain "{cap.name}" finished with {outcome}`, chat_id, chat_id)
@@ -720,6 +723,7 @@ zeron.on("turn.finished", function(e: any)
 		return
 	end
 	worker.status = outcome
+	worker.pending_input = nil
 	worker.updated_at = now
 	if reply ~= "" then
 		worker.last_reply = reply
@@ -759,6 +763,7 @@ zeron.on("turn.errored", function(e: any)
 	local worker = state.workers[chat_id]
 	if worker then
 		worker.status = "errored"
+		worker.pending_input = nil
 		worker.updated_at = now
 		worker.last_error = if reply ~= "" then clip(reply, 240) else "Turn errored"
 		push_event("worker_errored", `{worker.role} errored: {worker.task}`, worker.captain_id, chat_id)
@@ -772,6 +777,7 @@ zeron.on("turn.errored", function(e: any)
 	local cap = state.captains[chat_id]
 	if cap then
 		cap.status = "errored"
+		cap.pending_input = nil
 		cap.updated_at = now
 		push_event("captain_errored", `Captain "{cap.name}" errored`, chat_id, chat_id)
 		save_and_emit()
@@ -784,14 +790,41 @@ zeron.on("chat.awaiting_input", function(e: any)
 		return
 	end
 	local now = os.time()
+	local request = non_empty(e and e.request) or non_empty(e and e.request_id)
+	local title = non_empty(e and e.title) or non_empty(e and e.header) or non_empty(e and e.question)
+	local detail = non_empty(e and e.detail) or non_empty(e and e.command) or non_empty(e and e.message) or non_empty(e and e.text)
+	if type(e) == "table" and type(e.questions) == "table" and type(e.questions[1]) == "table" then
+		local q1 = e.questions[1]
+		if not title then
+			title = non_empty(q1.header) or non_empty(q1.question)
+		end
+		if not detail then
+			local qd = non_empty(q1.question) or non_empty(q1.detail)
+			if qd and qd ~= title then
+				detail = qd
+			end
+		end
+	end
+	local kind = non_empty(e and e.kind) or "approval"
+	local pending_input = {
+		at = now,
+		request = request,
+		title = if title then clip(title, 160) else nil,
+		detail = if detail then clip(detail, 360) else nil,
+		kind = kind,
+	}
+
 	local worker = state.workers[chat_id]
 	if worker then
 		worker.status = "awaiting_input"
+		worker.pending_input = pending_input
 		worker.updated_at = now
-		push_event("awaiting_input", `{worker.role} needs your input: {worker.task}`, worker.captain_id, chat_id)
+		local summary_detail = pending_input.title or worker.task
+		push_event("awaiting_input", `{worker.role} needs your input: {summary_detail}`, worker.captain_id, chat_id)
 		local parent = state.captains[worker.captain_id]
 		if parent and parent.notify_attention ~= false then
-			try_notify(`Needs input · {worker.role}`, worker.task, chat_id)
+			local notif_body = pending_input.detail or pending_input.title or worker.task
+			try_notify(`Needs input · {worker.role}`, notif_body, chat_id)
 		end
 		save_and_emit()
 		return
@@ -799,10 +832,15 @@ zeron.on("chat.awaiting_input", function(e: any)
 	local cap = state.captains[chat_id]
 	if cap then
 		cap.status = "awaiting_input"
+		cap.pending_input = pending_input
 		cap.updated_at = now
-		push_event("awaiting_input", `Captain "{cap.name}" awaits your input`, chat_id, chat_id)
+		local summary = if pending_input.title
+			then `Captain "{cap.name}" awaits your input: {pending_input.title}`
+			else `Captain "{cap.name}" awaits your input`
+		push_event("awaiting_input", summary, chat_id, chat_id)
 		if cap.notify_attention ~= false then
-			try_notify(`Captain needs input · {cap.name}`, cap.mission ~= "" and cap.mission or "Open chat to respond.", chat_id)
+			local notif_body = pending_input.detail or pending_input.title or (if cap.mission ~= "" then cap.mission else "Open chat to respond.")
+			try_notify(`Captain needs input · {cap.name}`, notif_body, chat_id)
 		end
 		save_and_emit()
 	end
@@ -816,16 +854,28 @@ zeron.on("chat.input_answered", function(e: any)
 	local now = os.time()
 	local changed = false
 	local worker = state.workers[chat_id]
-	if worker and worker.status == "awaiting_input" then
-		worker.status = "running"
-		worker.updated_at = now
-		changed = true
+	if worker then
+		if worker.pending_input ~= nil then
+			worker.pending_input = nil
+			changed = true
+		end
+		if worker.status == "awaiting_input" then
+			worker.status = "running"
+			worker.updated_at = now
+			changed = true
+		end
 	end
 	local cap = state.captains[chat_id]
-	if cap and cap.status == "awaiting_input" then
-		cap.status = "running"
-		cap.updated_at = now
-		changed = true
+	if cap then
+		if cap.pending_input ~= nil then
+			cap.pending_input = nil
+			changed = true
+		end
+		if cap.status == "awaiting_input" then
+			cap.status = "running"
+			cap.updated_at = now
+			changed = true
+		end
 	end
 	if changed then
 		save_and_emit()
@@ -1084,6 +1134,107 @@ zeron.serve("message_chat", function(args: any)
 	push_event("message_sent", `Sent ({mode}) to {if w then w.role else "chat"}: {clip(text, 72)}`, cap_id, chat_id)
 	save_and_emit()
 	return res
+end)
+
+local function err_reason(err: any): string
+	if type((zeron :: any).reason) == "function" then
+		local ok, r = pcall((zeron :: any).reason, err)
+		if ok and type(r) == "string" and r ~= "" then
+			return r
+		end
+	end
+	local text = tostring(err)
+	return string.match(text, "^([%a_]+):") or string.match(text, "^([%a_]+)$") or "failed"
+end
+
+zeron.serve("answer_input", function(args: any)
+	local a = if type(args) == "table" then args else {}
+	local chat_id = non_empty(a.chat_id) or non_empty(a.chat)
+	if not chat_id then
+		return { ok = false, error = "chat_id is required", needs_chat = true }
+	end
+
+	local raw_decision = non_empty(a.decision)
+	local decision = if raw_decision then string.lower(raw_decision) else nil
+	local explicit_answers = a.answers
+
+	local worker = state.workers[chat_id]
+	local cap = state.captains[chat_id]
+	local stored_req: string? = nil
+	if worker and type(worker.pending_input) == "table" then
+		stored_req = non_empty(worker.pending_input.request)
+	elseif cap and type(cap.pending_input) == "table" then
+		stored_req = non_empty(cap.pending_input.request)
+	end
+	local req = non_empty(a.request) or stored_req
+
+	local candidates: { any } = {}
+	if explicit_answers ~= nil then
+		candidates = { explicit_answers }
+	elseif decision == "allow" then
+		candidates = { { "Allow" }, { "Allow once" }, { "Yes" } }
+	elseif decision == "always" then
+		candidates = { { "Always allow" }, { "Allow" } }
+	elseif decision == "deny" then
+		candidates = { { "Deny" }, { "No" } }
+	else
+		return { ok = false, error = "Unsupported decision or missing answers", needs_chat = true }
+	end
+
+	local last_err: any = nil
+	local succeeded = false
+	for _, cand in candidates do
+		local ok, res_or_err = pcall(function()
+			return zeron.answer({
+				chat = chat_id,
+				answers = cand,
+				request = req,
+			}):await()
+		end)
+		if ok then
+			succeeded = true
+			break
+		end
+		last_err = res_or_err
+		local reason = err_reason(res_or_err)
+		if reason == "not_allowed" or reason == "not_found" then
+			break
+		end
+	end
+
+	if succeeded then
+		local now = os.time()
+		local cap_id: string? = nil
+		local label = "chat"
+		if worker then
+			worker.pending_input = nil
+			if worker.status == "awaiting_input" then
+				worker.status = "running"
+			end
+			worker.updated_at = now
+			cap_id = worker.captain_id
+			label = worker.role or "worker"
+		end
+		if cap then
+			cap.pending_input = nil
+			if cap.status == "awaiting_input" then
+				cap.status = "running"
+			end
+			cap.updated_at = now
+			cap_id = chat_id
+			label = `Captain "{cap.name or "Captain"}"`
+		end
+		local action_lbl = decision or "custom"
+		push_event("input_answered", `Answered {label} ({action_lbl})`, cap_id, chat_id)
+		save_and_emit()
+		return { ok = true, chat_id = chat_id, decision = decision }
+	end
+
+	return {
+		ok = false,
+		error = tostring(last_err or "Could not answer prompt"),
+		needs_chat = true,
+	}
 end)
 
 zeron.serve("add_attention", function(args: any)

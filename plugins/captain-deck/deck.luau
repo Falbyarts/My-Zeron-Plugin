@@ -572,6 +572,234 @@ return function(zeron: any, client: any): (props: DeckProps) -> Node
 			return if s and type(s.events) == "table" then #s.events else 0
 		end
 
+		local function collect_attention_items(): { any }
+			local s = client.state:get() or {}
+			local ok_sess, sessions = pcall(zeron.sessions)
+			local live_sessions: { [string]: any } = if ok_sess and type(sessions) == "table" then sessions else {}
+
+			if type(client.all_attention_items) == "function" then
+				local ok, list = pcall(client.all_attention_items)
+				if ok and type(list) == "table" then
+					return list
+				end
+			end
+
+			local out: { any } = {}
+			local seen_awaiting: { [string]: boolean } = {}
+
+			local function check_awaiting(chat_id: string, stored_status: string?): (boolean, any?, string?)
+				local sess = live_sessions[chat_id]
+				local live_st = if type(sess) == "table" then sess.status else nil
+				local req = if type(sess) == "table"
+					then (sess.pending_input or sess.pendingInput or sess.input_request)
+					else nil
+				local is_wait = stored_status == "awaiting_input"
+					or live_st == "awaiting_input"
+					or live_st == "awaitingInput"
+					or req ~= nil
+				if not is_wait then
+					return false, nil, nil
+				end
+				local req_detail: string? = nil
+				if type(req) == "table" then
+					local d = trim(req.title or req.prompt or req.question or req.message or req.description or req.command or req.tool)
+					if d ~= "" then
+						req_detail = d
+					end
+				elseif type(req) == "string" and trim(req) ~= "" then
+					req_detail = trim(req)
+				end
+				return true, req, req_detail
+			end
+
+			local caps = s.captains or {}
+			local workers = s.workers or {}
+
+			for _, w in workers do
+				if type(w) == "table" and type(w.chat_id) == "string" and w.chat_id ~= "" then
+					local is_wait, req, req_detail = check_awaiting(w.chat_id, w.status)
+					if is_wait and not seen_awaiting[w.chat_id] then
+						seen_awaiting[w.chat_id] = true
+						local cap = caps[w.captain_id]
+						table.insert(out, {
+							kind = "awaiting_input",
+							id = `aw:{w.chat_id}`,
+							captain_id = w.captain_id,
+							captain_name = if cap and trim(cap.name) ~= "" then cap.name else "Captain",
+							chat_id = w.chat_id,
+							role = if trim(w.role) ~= "" then w.role else "worker",
+							title = if trim(w.task) ~= "" then w.task else (w.role or "worker"),
+							detail = req_detail or trim(w.last_error) or "",
+							request = req,
+							status = "awaiting_input",
+							at = w.updated_at or 0,
+						})
+					end
+				end
+			end
+
+			for cid, cap in caps do
+				if type(cap) == "table" then
+					local cap_name = if trim(cap.name) ~= "" then cap.name else client.session_title(cid)
+					local is_wait, req, req_detail = check_awaiting(cid, cap.status)
+					if is_wait and not seen_awaiting[cid] then
+						seen_awaiting[cid] = true
+						table.insert(out, {
+							kind = "awaiting_input",
+							id = `aw:{cid}`,
+							captain_id = cid,
+							captain_name = cap_name,
+							chat_id = cid,
+							role = "captain",
+							title = cap_name,
+							detail = req_detail or trim(cap.mission) or "",
+							request = req,
+							status = "awaiting_input",
+							at = cap.updated_at or 0,
+						})
+					end
+					if type(cap.needs_you) == "table" then
+						for _, item in cap.needs_you do
+							if type(item) == "table" and not item.resolved then
+								local item_chat = if type(item.worker_chat) == "string" and item.worker_chat ~= ""
+									then item.worker_chat
+									else cid
+								local w_ref = workers[item_chat]
+								table.insert(out, {
+									kind = "needs_you",
+									id = item.id,
+									item_id = item.id,
+									captain_id = cid,
+									captain_name = cap_name,
+									chat_id = item_chat,
+									role = if w_ref and trim(w_ref.role) ~= "" then w_ref.role else "captain",
+									title = item.title or "",
+									detail = item.detail or "",
+									status = "needs_you",
+									at = item.created_at or 0,
+								})
+							end
+						end
+					end
+				end
+			end
+
+			table.sort(out, function(a: any, b: any): boolean
+				local pa = if a.kind == "awaiting_input" then 1 else 0
+				local pb = if b.kind == "awaiting_input" then 1 else 0
+				if pa ~= pb then
+					return pa > pb
+				end
+				return (tonumber(a.at) or 0) > (tonumber(b.at) or 0)
+			end)
+			return out
+		end
+
+		local function safe_crew_summary(captain_id: string, crew: { any }, cap: any): {
+			total: number,
+			running: number,
+			completed: number,
+			attention: number,
+			awaiting: number,
+			errored: number,
+		}
+			if type(client.crew_summary) == "function" then
+				local ok, res = pcall(client.crew_summary, captain_id)
+				if ok and type(res) == "table" then
+					return {
+						total = tonumber(res.total) or #crew,
+						running = tonumber(res.running) or 0,
+						completed = tonumber(res.completed or res.done) or 0,
+						attention = tonumber(res.attention) or 0,
+						awaiting = tonumber(res.awaiting) or 0,
+						errored = tonumber(res.errored) or 0,
+					}
+				end
+			end
+			local running, completed, awaiting, errored, ny_count = 0, 0, 0, 0, 0
+			for _, w in crew do
+				if type(w) == "table" then
+					if w.status == "running" then
+						running += 1
+					elseif w.status == "completed" then
+						completed += 1
+					elseif w.status == "awaiting_input" then
+						awaiting += 1
+					elseif w.status == "errored" or w.status == "limited" then
+						errored += 1
+					end
+				end
+			end
+			if type(cap) == "table" then
+				if cap.status == "awaiting_input" then
+					awaiting += 1
+				end
+				if type(cap.needs_you) == "table" then
+					for _, item in cap.needs_you do
+						if type(item) == "table" and not item.resolved then
+							ny_count += 1
+						end
+					end
+				end
+			end
+			return {
+				total = #crew,
+				running = running,
+				completed = completed,
+				attention = awaiting + errored + ny_count,
+				awaiting = awaiting,
+				errored = errored,
+			}
+		end
+
+		local answering_chats: { [string]: boolean } = {}
+		local function handle_answer_input(chat_id: string, decision: "allow" | "deny", request: any?)
+			local cid = trim(chat_id)
+			if cid == "" or answering_chats[cid] then
+				return
+			end
+			local ok_toast = if decision == "allow" then zeron.s("toast.approved") else zeron.s("toast.denied")
+			local function fallback_open()
+				if decision == "allow" then
+					zeron.toast(zeron.s("toast.opened_to_respond"))
+				end
+				open_chat_and_close(cid)
+			end
+			local function handle_res(res: any)
+				answering_chats[cid] = nil
+				local succeeded = res == true or (type(res) == "table" and res.ok == true)
+				if succeeded then
+					zeron.toast(ok_toast)
+					if type(client.refresh) == "function" then
+						pcall(client.refresh)
+					end
+				else
+					fallback_open()
+				end
+			end
+			if type(client.answer_input) ~= "function" then
+				fallback_open()
+				return
+			end
+			answering_chats[cid] = true
+			local call_ok, res = pcall(client.answer_input, cid, decision, nil, request)
+			if not call_ok then
+				answering_chats[cid] = nil
+				fallback_open()
+				return
+			end
+			if type(res) == "table" and type(res.after) == "function" then
+				res:after(function(resolved: any)
+					handle_res(resolved)
+				end, function()
+					answering_chats[cid] = nil
+					fallback_open()
+				end)
+			else
+				handle_res(res)
+			end
+		end
+
 		local function captain_picker_options(include_new: boolean): { any }
 			local opts: { any } = {}
 			if include_new then
@@ -1949,30 +2177,140 @@ return function(zeron: any, client: any): (props: DeckProps) -> Node
 					},
 				}),
 
-				-- Needs You Alert Card (ONLY when pending attention items > 0)
+				-- Permissions & Needs You Alert Card (ONLY when active awaiting_input or unresolved needs_you > 0)
 				ui.show(function(): boolean
-					local _ = client.state:get()
-					return #client.attention_items() > 0
+					return #collect_attention_items() > 0
 				end, ui.presence(function(): string
-					local items = client.attention_items()
 					local s = client.state:get()
-					return if #items == 0 then "" else `att:{#items}:{s and s.rev or 0}`
+					local items = collect_attention_items()
+					if #items == 0 then
+						return ""
+					end
+					local parts: { string } = { tostring(s and s.rev or 0) }
+					for _, it in items do
+						table.insert(
+							parts,
+							`{tostring(it.kind or "")}:{tostring(it.id or "")}:{tostring(it.chat_id or "")}:{tostring(it.status or "")}:{tostring(it.title or "")}:{tostring(it.detail or "")}`
+						)
+					end
+					return "att:" .. table.concat(parts, "|")
 				end, function(key: string): Node
 					if key == "" then
 						return ui.div {}
 					end
-					local items = client.attention_items()
+					local items = collect_attention_items()
 					local att_rows: { Node } = {}
 					for idx, item in items do
-						local reason_label = if item.status == "awaiting_input"
+						local is_awaiting = item.kind == "awaiting_input"
+							or (item.kind ~= "needs_you" and item.kind ~= "escalation" and item.status == "awaiting_input")
+						local is_needs_you = item.kind == "needs_you" or item.kind == "escalation"
+						local role_label = if trim(item.role) ~= "" then trim(item.role) else "worker"
+						local cap_label = if trim(item.captain_name) ~= "" then trim(item.captain_name) else "Captain"
+						local item_chat = trim(item.chat_id)
+						local cap_id = trim(item.captain_id)
+						local resolve_id = trim(item.item_id or item.id)
+
+						local reason_label = if is_awaiting
 							then zeron.s("deck.attention.awaiting_input")
 							elseif item.status == "limited"
 							then zeron.s("deck.attention.limited")
-							else zeron.s("deck.attention.errored")
-						local detail = if item.detail and item.detail ~= "" then item.detail else reason_label
+							elseif item.status == "errored"
+							then zeron.s("deck.attention.errored")
+							else zeron.s("deck.attention.awaiting_input")
+
+						local raw_title = trim(item.title)
+						local raw_detail = trim(item.detail)
+						local row_title: string
+						local detail: string
+						if is_awaiting then
+							row_title = zeron.s("deck.attention.permission_role", { role = role_label })
+							if raw_title ~= "" and raw_detail ~= "" and raw_title ~= raw_detail then
+								detail = `{raw_title} — {raw_detail}`
+							elseif raw_detail ~= "" then
+								detail = raw_detail
+							elseif raw_title ~= "" then
+								detail = raw_title
+							else
+								detail = reason_label
+							end
+						else
+							row_title = if raw_title ~= "" then raw_title else reason_label
+							detail = if raw_detail ~= "" then raw_detail else reason_label
+						end
+
+						local icon_kind: any = if is_awaiting or is_needs_you
+							then "input"
+							elseif type(client.status_kind) == "function" then client.status_kind(item.status)
+							else "input"
+
 						if idx > 1 then
 							table.insert(att_rows, divider())
 						end
+
+						local actions: Node
+						if is_awaiting then
+							actions = ui.row {
+								shrink = 0,
+								items = "center",
+								gap = "$space.1",
+								Button {
+									size = "xs",
+									tone = "primary",
+									on_click = function()
+										handle_answer_input(item_chat, "allow", item.request)
+									end,
+									zeron.s("deck.attention.allow"),
+								},
+								Button {
+									size = "xs",
+									tone = "danger",
+									on_click = function()
+										handle_answer_input(item_chat, "deny", item.request)
+									end,
+									zeron.s("deck.attention.deny"),
+								},
+								Button {
+									size = "xs",
+									tone = "ghost",
+									on_click = function()
+										if item_chat ~= "" then
+											open_chat_and_close(item_chat)
+										end
+									end,
+									zeron.s("deck.attention.open_chat"),
+								},
+							}
+						else
+							actions = ui.row {
+								shrink = 0,
+								items = "center",
+								gap = "$space.1",
+								Button {
+									size = "xs",
+									tone = "primary",
+									on_click = function()
+										if item_chat ~= "" then
+											open_chat_and_close(item_chat)
+										end
+									end,
+									zeron.s("deck.attention.open_chat"),
+								},
+								if is_needs_you and resolve_id ~= "" and cap_id ~= ""
+									then Button {
+										size = "xs",
+										tone = "ghost",
+										on_click = function()
+											client.call("resolve_attention", {
+												captain_id = cap_id,
+												item_id = resolve_id,
+											})
+										end,
+										zeron.s("deck.attention.resolve"),
+									}
+									else nil,
+							}
+						end
+
 						table.insert(
 							att_rows,
 							ui.row {
@@ -1985,13 +2323,14 @@ return function(zeron: any, client: any): (props: DeckProps) -> Node
 									grow = 1,
 									min_w = 0,
 									gap = 2,
+									tooltip = detail,
 									ui.row {
 										w_full = true,
 										items = "center",
 										gap = "$space.2",
-										Status.StatusIcon { kind = client.status_kind(item.status) :: any, size = 13 },
+										Status.StatusIcon { kind = icon_kind, size = 14 },
 										ui.text {
-											item.title or reason_label,
+											row_title,
 											grow = 1,
 											min_w = 0,
 											truncate = true,
@@ -1999,44 +2338,21 @@ return function(zeron: any, client: any): (props: DeckProps) -> Node
 											weight = "$font.weight.semibold",
 											color = "$text.primary",
 										},
-										Badge.Badge { item.captain_name or "Captain", tone = "warning", size = "sm" },
-										Badge.Badge { item.role or "worker", tone = "neutral", size = "sm" },
+										Badge.Badge { cap_label, tone = "warning", size = "sm" },
+										if not is_awaiting
+											then Badge.Badge { role_label, tone = "neutral", size = "sm" }
+											else nil,
 									},
 									ui.text {
 										detail,
 										w_full = true,
-										pl = 20,
+										pl = 22,
 										truncate = true,
 										text_size = "$font.size.xs",
 										color = "$text.secondary",
 									},
 								},
-								ui.row {
-									shrink = 0,
-									items = "center",
-									gap = "$space.1",
-									Button {
-										size = "xs",
-										tone = "primary",
-										on_click = function()
-											open_chat_and_close(item.chat_id)
-										end,
-										zeron.s("deck.attention.open_chat"),
-									},
-									if item.kind == "escalation" and item.item_id
-										then Button {
-											size = "xs",
-											tone = "ghost",
-											on_click = function()
-												client.call("resolve_attention", {
-													captain_id = item.captain_id,
-													item_id = item.item_id,
-												})
-											end,
-											zeron.s("deck.attention.resolve"),
-										}
-										else nil,
-								},
+								actions,
 							}
 						)
 					end
@@ -2087,7 +2403,7 @@ return function(zeron: any, client: any): (props: DeckProps) -> Node
 						if not matches_query(cap, crew, q) then
 							continue
 						end
-						local sum = client.crew_summary(cap.chat_id)
+						local sum = safe_crew_summary(cap.chat_id, crew, cap)
 						local has_attention = sum.attention > 0
 						local cap_name = trim(cap.name)
 						if cap_name == "" then
@@ -3670,7 +3986,7 @@ return function(zeron: any, client: any): (props: DeckProps) -> Node
 					},
 					ui.presence(function(): string
 						local s = client.state:get()
-						local n_att = #client.attention_items()
+						local n_att = #collect_attention_items()
 						return `hdr:{s and s.rev or 0}:{n_att}`
 					end, function(): Node
 						local s = client.state:peek() or {}
@@ -3681,7 +3997,7 @@ return function(zeron: any, client: any): (props: DeckProps) -> Node
 						for _ in (s.workers or {}) do
 							n_workers += 1
 						end
-						local n_att = #client.attention_items()
+						local n_att = #collect_attention_items()
 						local cap_word = if n_caps == 1
 							then zeron.s("deck.stats.captain_singular")
 							else zeron.s("deck.stats.captains")

@@ -128,6 +128,172 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 		return "waiting"
 	end
 
+	local function handle_permission_decision(chat_id: string, decision: string, request: any?)
+		local function fallback_open()
+			if type(chat_id) == "string" and chat_id ~= "" then
+				pcall(zeron.open, { session = chat_id })
+			end
+			zeron.toast("Opened chat to respond")
+		end
+		if type(chat_id) ~= "string" or chat_id == "" then
+			return
+		end
+		if type(client.answer_input) ~= "function" then
+			fallback_open()
+			return
+		end
+		local ok, p = pcall(client.answer_input, chat_id, decision, nil, request)
+		if not ok or p == nil then
+			fallback_open()
+			return
+		end
+		local ok_toast = if decision == "allow" then "Approved" else "Denied"
+		if type(p) == "table" and type(p.after) == "function" then
+			p:after(function(res: any)
+				if type(res) == "table" and res.ok == true then
+					zeron.toast(ok_toast)
+				else
+					fallback_open()
+				end
+			end, function()
+				fallback_open()
+			end)
+		elseif type(p) == "table" and p.ok == true then
+			zeron.toast(ok_toast)
+		else
+			fallback_open()
+		end
+	end
+
+	local function collect_attention_items(cid: string, cap: any, crew: { any }): { any }
+		local awaiting_list: { any } = {}
+		local needs_list: { any } = {}
+		local seen: { [string]: boolean } = {}
+
+		local function push_item(entry: any)
+			if type(entry) ~= "table" then
+				return
+			end
+			local kind = entry.kind
+			if kind ~= "awaiting_input" and kind ~= "needs_you" then
+				return
+			end
+			local chat_id = if type(entry.chat_id) == "string" then entry.chat_id else ""
+			local eid = tostring(entry.id or chat_id)
+			local key = if kind == "awaiting_input" then `awaiting_input:{chat_id}` else `needs_you:{eid}`
+			if seen[key] then
+				return
+			end
+			seen[key] = true
+			if kind == "awaiting_input" then
+				table.insert(awaiting_list, entry)
+			else
+				table.insert(needs_list, entry)
+			end
+		end
+
+		if type(client.attention_items) == "function" then
+			local ok, raw_items = pcall(client.attention_items, cid)
+			if ok and type(raw_items) == "table" then
+				for _, item in raw_items do
+					if type(item) == "table" then
+						local item_cap = if type(item.captain_id) == "string" then item.captain_id else ""
+						if cid == "" or item_cap == "" or item_cap == cid then
+							if item.kind == "awaiting_input" then
+								push_item(item)
+							elseif item.kind == "needs_you" or item.kind == "escalation" then
+								push_item({
+									kind = "needs_you",
+									id = item.item_id or item.id,
+									captain_id = if item_cap ~= "" then item_cap else cid,
+									captain_name = item.captain_name,
+									chat_id = item.chat_id or cid,
+									role = item.role or "captain",
+									title = item.title or "Needs decision",
+									detail = item.detail or "",
+								})
+							elseif (item.kind == "worker" or item.kind == "captain_status") and item.status == "awaiting_input" then
+								push_item({
+									kind = "awaiting_input",
+									id = item.id,
+									captain_id = if item_cap ~= "" then item_cap else cid,
+									captain_name = item.captain_name,
+									chat_id = item.chat_id,
+									role = item.role or "worker",
+									title = item.title or item.role or "worker",
+									detail = item.detail or "",
+									request = item.request,
+								})
+							end
+						end
+					end
+				end
+			end
+		end
+
+		local cap_name = if cap and type(cap.name) == "string" and trim(cap.name) ~= "" then trim(cap.name) else "Captain"
+		if cap and cap.status == "awaiting_input" then
+			local pi = if type(cap.pending_input) == "table" then cap.pending_input else nil
+			push_item({
+				kind = "awaiting_input",
+				id = `input:{cid}`,
+				captain_id = cid,
+				captain_name = cap_name,
+				chat_id = cid,
+				role = "Captain",
+				title = if pi and trim(pi.title) ~= "" then trim(pi.title) else cap_name,
+				detail = trim(if pi and trim(pi.detail) ~= "" then pi.detail else cap.mission),
+				request = if pi then pi.request else nil,
+			})
+		end
+		for _, member in crew do
+			if type(member) == "table" and member.status == "awaiting_input" then
+				local pi = if type(member.pending_input) == "table" then member.pending_input else nil
+				local m_role = if type(member.role) == "string" and trim(member.role) ~= "" then trim(member.role) else "worker"
+				local m_detail = trim(if pi then pi.detail else nil)
+				if m_detail == "" then
+					m_detail = trim(member.task)
+				end
+				push_item({
+					kind = "awaiting_input",
+					id = `input:{member.chat_id}`,
+					captain_id = cid,
+					captain_name = cap_name,
+					chat_id = member.chat_id,
+					role = m_role,
+					title = if pi and trim(pi.title) ~= "" then trim(pi.title) else (member.task or m_role),
+					detail = m_detail,
+					request = if pi then pi.request else nil,
+				})
+			end
+		end
+		if cap and type(cap.needs_you) == "table" then
+			for _, item in cap.needs_you do
+				if type(item) == "table" and not item.resolved then
+					push_item({
+						kind = "needs_you",
+						id = item.id,
+						captain_id = cid,
+						captain_name = cap_name,
+						chat_id = item.worker_chat or cid,
+						role = "captain",
+						title = item.title or "Needs decision",
+						detail = item.detail or "",
+					})
+				end
+			end
+		end
+
+		local out: { any } = {}
+		for _, item in awaiting_list do
+			table.insert(out, item)
+		end
+		for _, item in needs_list do
+			table.insert(out, item)
+		end
+		return out
+	end
+
 	return ui.component(function(props: { tab: any }): Node
 		local function current_captain_id(): string
 			local d = if props and props.tab and type(props.tab.data) == "table" then props.tab.data else {}
@@ -224,7 +390,13 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 						return `missing:{cid}`
 					end
 					local s = client.state:get()
-					return `ok:{cid}:{s and s.rev or 0}:{tostring(show_spawn:get())}:{tostring(steer_target:get())}`
+					local crew = client.crew_of(cid) or {}
+					local attn = collect_attention_items(cid, cap, crew)
+					local attn_sig: { string } = {}
+					for _, item in attn do
+						table.insert(attn_sig, `{item.kind}:{tostring(item.id or "")}:{item.chat_id or ""}`)
+					end
+					return `ok:{cid}:{s and s.rev or 0}:{tostring(show_spawn:get())}:{tostring(steer_target:get())}:{table.concat(attn_sig, ",")}`
 				end, function(key: string): Node
 					if string.sub(key, 1, 8) == "missing:" then
 						return ui.column {
@@ -258,16 +430,8 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 					end
 
 					local crew = client.crew_of(cid) or {}
-					local sum = client.crew_summary(cid) or { total = 0, running = 0, attention = 0, done = 0 }
-
-					local pending_ny: { any } = {}
-					if type(cap.needs_you) == "table" then
-						for _, item in cap.needs_you do
-							if type(item) == "table" and not item.resolved then
-								table.insert(pending_ny, item)
-							end
-						end
-					end
+					local sum = client.crew_summary(cid) or { total = 0, running = 0, attention = 0, completed = 0 }
+					local attn_items = collect_attention_items(cid, cap, crew)
 
 					local cap_name = trim(cap.name)
 					if cap_name == "" then
@@ -290,7 +454,7 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 							rounded = "$radius.lg",
 							bg = "$surface.raised",
 							border = 1,
-							border_color = if #pending_ny > 0 then "$warning" else "$border",
+							border_color = if #attn_items > 0 then "$warning" else "$border",
 
 							-- Row 1: Status + Name | + Worker, Open chat, Open Deck
 							ui.row {
@@ -442,74 +606,164 @@ return function(zeron: any, client: any): (props: { tab: any }) -> Node
 						)
 					end
 
-					-- 3. Needs You (only rendered when active items > 0)
-					if #pending_ny > 0 then
+					-- 3. Permissions & Needs You (only rendered when active items > 0)
+					if #attn_items > 0 then
 						local ny_cards: { Node } = {
 							ui.row {
 								w_full = true,
 								items = "center",
 								gap = "$space.1",
-								Icon { name = "bell", size = 12, color = "$warning" },
+								Status.StatusIcon { kind = "input", size = 13 },
 								Text {
-									`Needs You ({#pending_ny})`,
+									`Permissions & Needs You ({#attn_items})`,
 									text_size = "$font.size.xs",
 									weight = "$font.weight.medium",
 									color = "$warning",
 								},
 							},
 						}
-						for _, item in pending_ny do
+						for _, item in attn_items do
+							local item_chat = if type(item.chat_id) == "string" and item.chat_id ~= ""
+								then item.chat_id
+								else cid
 							local detail = trim(item.detail)
-							table.insert(
-								ny_cards,
-								ui.column {
-									w_full = true,
-									bg = "$surface.raised",
-									border = 1,
-									border_color = "$warning",
-									rounded = "$radius.md",
-									px = "$space.3",
-									py = "$space.2",
-									gap = "$space.1",
-									Text {
-										if trim(item.title) ~= "" then trim(item.title) else "Needs decision",
-										text_size = "$font.size.sm",
-										weight = "$font.weight.medium",
-										color = "$text.primary",
-										wrap = true,
-									},
-									if detail ~= ""
-										then Text {
-											detail,
-											text_size = "$font.size.xs",
-											color = "$text.secondary",
-											wrap = true,
-										}
-										else nil,
-									ui.row {
+							if item.kind == "awaiting_input" then
+								local item_role = if type(item.role) == "string" and trim(item.role) ~= ""
+									then trim(item.role)
+									else "worker"
+								local item_title = trim(item.title)
+								local body_text = detail
+								if body_text == "" and item_title ~= "" and string.lower(item_title) ~= string.lower(item_role) then
+									body_text = item_title
+								end
+								local item_req = item.request
+								table.insert(
+									ny_cards,
+									ui.column {
 										w_full = true,
-										justify = "end",
+										bg = "$surface.raised",
+										border = 1,
+										border_color = "$warning",
+										rounded = "$radius.md",
+										px = "$space.3",
+										py = "$space.2",
 										gap = "$space.1",
-										pt = "$space.1",
-										Button {
-											size = "xs",
-											tone = "secondary",
-											on_click = function()
-												pcall(zeron.open, { session = item.worker_chat or cid })
-											end,
-											"Open",
+										ui.row {
+											w_full = true,
+											items = "center",
+											gap = "$space.1",
+											Status.StatusIcon { kind = "input", size = 13 },
+											Text {
+												`Permission · {item_role}`,
+												grow = 1,
+												min_w = 0,
+												text_size = "$font.size.sm",
+												weight = "$font.weight.medium",
+												color = "$text.primary",
+												truncate = true,
+											},
 										},
-										Button {
-											size = "xs",
-											tone = "ghost",
-											on_click = function()
-												client.call("resolve_attention", { captain_id = cid, item_id = item.id })
-											end,
-											"Resolve",
+										if body_text ~= ""
+											then Text {
+												body_text,
+												text_size = "$font.size.xs",
+												color = "$text.secondary",
+												wrap = true,
+											}
+											else nil,
+										ui.row {
+											w_full = true,
+											justify = "end",
+											gap = "$space.1",
+											pt = "$space.1",
+											Button {
+												size = "xs",
+												tone = "primary",
+												on_click = function()
+													handle_permission_decision(item_chat, "allow", item_req)
+												end,
+												"Allow",
+											},
+											Button {
+												size = "xs",
+												tone = "ghost",
+												on_click = function()
+													handle_permission_decision(item_chat, "deny", item_req)
+												end,
+												"Deny",
+											},
+											Button {
+												size = "xs",
+												tone = "secondary",
+												on_click = function()
+													pcall(zeron.open, { session = item_chat })
+												end,
+												"Open",
+											},
 										},
-									},
-								}
-							)
+									}
+								)
+							else
+								local item_id = item.id
+								table.insert(
+									ny_cards,
+									ui.column {
+										w_full = true,
+										bg = "$surface.raised",
+										border = 1,
+										border_color = "$warning",
+										rounded = "$radius.md",
+										px = "$space.3",
+										py = "$space.2",
+										gap = "$space.1",
+										ui.row {
+											w_full = true,
+											items = "center",
+											gap = "$space.1",
+											Status.StatusIcon { kind = "input", size = 13 },
+											Text {
+												if trim(item.title) ~= "" then trim(item.title) else "Needs decision",
+												grow = 1,
+												min_w = 0,
+												text_size = "$font.size.sm",
+												weight = "$font.weight.medium",
+												color = "$text.primary",
+												wrap = true,
+											},
+										},
+										if detail ~= ""
+											then Text {
+												detail,
+												text_size = "$font.size.xs",
+												color = "$text.secondary",
+												wrap = true,
+											}
+											else nil,
+										ui.row {
+											w_full = true,
+											justify = "end",
+											gap = "$space.1",
+											pt = "$space.1",
+											Button {
+												size = "xs",
+												tone = "secondary",
+												on_click = function()
+													pcall(zeron.open, { session = item_chat })
+												end,
+												"Open",
+											},
+											Button {
+												size = "xs",
+												tone = "ghost",
+												on_click = function()
+													client.call("resolve_attention", { captain_id = cid, item_id = item_id })
+												end,
+												"Resolve",
+											},
+										},
+									}
+								)
+							end
 						end
 						table.insert(sections, ui.column { w_full = true, gap = "$space.2", table.unpack(ny_cards) })
 					end
