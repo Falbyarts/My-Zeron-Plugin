@@ -19,12 +19,83 @@ return function(zeron: any): any
 	local loading = ui.state("captain-deck.loading.v1", false)
 	local service_err = ui.state("captain-deck.err.v1", nil :: string?)
 	local focus_chat = ui.state("captain-deck.focus.v1", nil :: string?)
+	local deck_open = ui.state("captain_deck.open", false)
+	local deck_dirty = ui.state("captain_deck.dirty", false)
+	local strip_dismissed = ui.state("captain_deck.strip_dismissed", {} :: { [string]: boolean })
 
 	M.state = state
 	M.harnesses = harnesses
 	M.loading = loading
 	M.service_err = service_err
 	M.focus_chat = focus_chat
+	M.deck_open = deck_open
+	M.deck_dirty = deck_dirty
+	M.strip_dismissed = strip_dismissed
+
+	function M.open_deck()
+		deck_open:set(true)
+	end
+
+	function M.close_deck()
+		deck_open:set(false)
+	end
+
+	function M.toggle_deck()
+		deck_open:set(not (deck_open:peek() == true))
+	end
+
+	function M.set_deck_dirty(dirty: boolean)
+		local next_val = dirty == true
+		if (deck_dirty:peek() == true) ~= next_val then
+			deck_dirty:set(next_val)
+		end
+	end
+
+	function M.is_deck_dirty(): boolean
+		return deck_dirty:peek() == true
+	end
+
+	function M.is_strip_dismissed(sid: string?): boolean
+		if type(sid) ~= "string" or sid == "" then
+			return false
+		end
+		local map = strip_dismissed:get()
+		return type(map) == "table" and map[sid] == true
+	end
+
+	function M.dismiss_strip(sid: string?)
+		if type(sid) ~= "string" or sid == "" then
+			return
+		end
+		local cur = strip_dismissed:peek()
+		local next_map: { [string]: boolean } = {}
+		if type(cur) == "table" then
+			for k, v in cur do
+				if v then
+					next_map[k] = true
+				end
+			end
+		end
+		next_map[sid] = true
+		strip_dismissed:set(next_map)
+	end
+
+	function M.show_strip(sid: string?)
+		if type(sid) ~= "string" or sid == "" then
+			return
+		end
+		local cur = strip_dismissed:peek()
+		if type(cur) ~= "table" or not cur[sid] then
+			return
+		end
+		local next_map: { [string]: boolean } = {}
+		for k, v in cur do
+			if v and k ~= sid then
+				next_map[k] = true
+			end
+		end
+		strip_dismissed:set(next_map)
+	end
 
 	local svc = zeron.service()
 	local pruning = false
@@ -39,6 +110,37 @@ return function(zeron: any): any
 	local function non_empty(s: any): string?
 		local t = trim(s)
 		return if t ~= "" then t else nil
+	end
+
+	function M.sanitize_harness(raw: any): string
+		local s = trim(raw)
+		if s == "" then
+			return ""
+		end
+		local comma = string.find(s, ",", 1, true)
+		if comma then
+			s = trim(string.sub(s, 1, comma - 1))
+		end
+		s = string.lower(s)
+		if s == "" then
+			return ""
+		end
+		return s
+	end
+
+	function M.short_model(harness: string?, model: string?): string
+		local m = trim(model)
+		if m == "" then
+			return ""
+		end
+		local h = trim(harness)
+		if h ~= "" then
+			local prefix = string.lower(h) .. "/"
+			if string.sub(string.lower(m), 1, #prefix) == prefix then
+				return string.sub(m, #prefix + 1)
+			end
+		end
+		return m
 	end
 
 	function M.default_target(): { device: string?, fallback_project: string? }
@@ -264,7 +366,7 @@ return function(zeron: any): any
 		local p = svc:call("sync_settings", {
 			default_auto_report = s.default_auto_report ~= false,
 			notify_on_attention = s.notify_on_attention ~= false,
-			default_reviewer_harness = s.default_reviewer_harness or "",
+			default_reviewer_harness = M.sanitize_harness(s.default_reviewer_harness),
 		})
 		if p and type(p.after) == "function" then
 			p:after(nil, function() end)
@@ -280,6 +382,10 @@ return function(zeron: any): any
 				end
 			end, function() end)
 		end
+	end
+
+	function M.clear_all(include_events: boolean?): any
+		return M.call("clear_all", { include_events = include_events == true })
 	end
 
 	function M.call(method: string, args: any?, on_ok: ((any) -> ())?, on_err: ((any) -> ())?): any

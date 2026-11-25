@@ -6,13 +6,15 @@
   "name": "Captain Deck",
   "permissions": [
     "ui.add",
-    "pages.add",
     "panel.tabs",
     "navigate",
+    "draft",
+    "compose",
     "sessions.read",
     "messages.read",
     "messages.send",
     "models.read",
+    "files.read",
     "notifications",
     "service",
     "tools"
@@ -37,12 +39,42 @@
     },
     {
       "default": "",
-      "description": "Default harness id for Cross-Harness Review (e.g. claude-code, opencode, antigravity, pi, codex, hermes). Leave blank to pick automatically.",
+      "description": "Default harness for Cross-Harness Review. Leave on Auto to pick a different harness automatically.",
       "id": "default_reviewer_harness",
-      "kind": "text",
+      "kind": "choice",
       "label": "Preferred reviewer harness",
-      "placeholder": "e.g. antigravity, opencode, claude-code, pi",
-      "section": "Orchestration"
+      "options": [
+        {
+          "label": "Auto (pick automatically)",
+          "value": ""
+        },
+        {
+          "label": "Antigravity",
+          "value": "antigravity"
+        },
+        {
+          "label": "Claude Code",
+          "value": "claude-code"
+        },
+        {
+          "label": "Codex",
+          "value": "codex"
+        },
+        {
+          "label": "OpenCode",
+          "value": "opencode"
+        },
+        {
+          "label": "Pi",
+          "value": "pi"
+        },
+        {
+          "label": "Hermes",
+          "value": "hermes"
+        }
+      ],
+      "section": "Orchestration",
+      "style": "select"
     },
     {
       "default": true,
@@ -54,10 +86,10 @@
     },
     {
       "default": true,
-      "description": "Show a Captain/Crew status pill or quick Promote button in each chat's header.",
-      "id": "show_header_pill",
+      "description": "Show a compact Captain/Crew bar above the composer in orchestrated chats with quick access to Deck and Crew Inspector.",
+      "id": "show_composer_bar",
       "kind": "switch",
-      "label": "Show chat header controls",
+      "label": "Show composer orchestrator bar",
       "section": "Interface"
     }
   ],
@@ -65,18 +97,18 @@
   "signature": {
     "files": {
       "README.md": "1af0d590b66ab209c8e844d934d7dd1533a1e38276bd3ba3456aad492cba3c73",
-      "badges.luau": "db5ac2c5d4f99928fdba7eb33f4179acdf5c6811dedaca3c40363f0cd85a8a1c",
-      "client.luau": "25527c139d7c36a8a9b6182de58ed7e912606d918fa49401e79ad06ea48f7236",
-      "deck.luau": "2afa4dba7f91269106188476a4a64a398d8bb78b6d909237123ecf953964a9da",
+      "badges.luau": "39230f89d1218fccdad9534f9ae89049a8a07e6bbdc987df96757662113bedd9",
+      "client.luau": "e2f5e15bf19043de9d9088153f28efee951f6c01b2bff4f6e3136476b998fea4",
+      "deck.luau": "a64ee90569223ca0c0108ba7c7ed5861d4f8529bd71e04638153e6ab14d7f6fe",
       "icon.svg": "8c2ee2ea04824d1b67b5ec8124fd007d0aa0aa25cf592f13e574ae1abf2bc735",
-      "init.luau": "8e86fbb145ce6544efddabfb8cc2a0d087306a998e4a8f0ccd2de80948769f77",
-      "inspector.luau": "35d3cf950da0a6cf2fd7ce4a47418f7babc5f4408205137577101620695f101c",
-      "locales/en.json": "31dbfeb3aa0cb4cb25e9efbd258610aa34439f96451b77f91ad80b47ffaf6d48",
-      "service.luau": "e9697cee49db3f76366da98dccf10ecdc817f2e41e76ac7e9258c555ab0af69f",
+      "init.luau": "d6eae48478910ac335b0ce92f804e447315015f0aec50cf00720f0f2554064de",
+      "inspector.luau": "384438e18bc1e4fade60b9f357ec20f0225e735c3226e5cfce834bcf87482dc2",
+      "locales/en.json": "fb2e089593738807bf90d9d1449e64a82b9ecc2d416df3ec8330f928d18fcd49",
+      "service.luau": "5b7751ba0d67add1ace47685d2d0c349f9314303babe8da7376d86210a38c4cf",
       "zeron.luau": "178b79b55566c9643b26181539b8e1348482179a169da98ba384cd66f3f8a483"
     },
     "key": "qe0KcCOqgglmdlcmQdH38lS8wk-P2wEL0lS_5m7L9II",
-    "sig": "-6BA7kl3Tr5FtA1mJo3PTyZikJvDS59UhrWgT94BO9jGLF4OrcWhix-OR0isCeL7EhO6_XS2PFhZi7q19Mc0Aw"
+    "sig": "FS2ZqONPTow8qsQL5JFD24DuVhxvC3-Srf8RiRHmJxNpxzYEWOv6EsIOrIzt8rLu6cS9BdO-0HxT8cuqjfBgDw"
   },
   "tools": [
     {
@@ -308,5 +340,5 @@
       "name": "captain_update_digest"
     }
   ],
-  "version": "1.1.2"
+  "version": "1.2.0"
 }

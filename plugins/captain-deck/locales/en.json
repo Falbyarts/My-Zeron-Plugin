@@ -6,24 +6,31 @@
     "title": "Captain Deck",
     "subtitle": "Harness-agnostic multi-agent orchestration across every agent in Zeron",
     "refresh": "Refresh deck",
+    "close": "Close Captain Deck",
+    "close_short": "Close",
     "new_captain": "New Captain",
     "launch_workflow": "Launch Mission",
-    "search_placeholder": "Filter captains, crew, roles, tasks, or harnesses…",
+    "search_placeholder": "Filter captains, crew, roles, or harnesses…",
     "composer": {
-      "title": "Quick Mission Composer",
+      "title": "Launch Mission",
+      "collapse": "Collapse",
+      "expand": "Compose",
+      "collapsed_hint": "Launch Build → Review, Parallel Swarm, Compare, or a new Captain",
+      "search_models": "Search models…",
+      "model_default": "Harness default",
       "mode_build_review": "Build → Review",
       "mode_fanout": "Parallel Swarm",
       "mode_compare": "Compare 2 Agents",
       "mode_captain": "New Captain",
-      "desc_build_review": "1 agent builds the task; when finished, a 2nd agent automatically reviews the result read-only.",
-      "desc_fanout": "Split subtasks across parallel worker agents (1 line = 1 worker) under one coordinating Captain.",
-      "desc_compare": "Run the same task side-by-side on 2 different harnesses or models to compare their solutions.",
-      "desc_captain": "Launch a standalone coordinator Captain thread with its own mission and shared crew rules.",
+      "desc_build_review": "1 agent builds; when finished, a 2nd agent reviews read-only.",
+      "desc_fanout": "Split subtasks across parallel workers (1 line = 1 worker) under one Captain.",
+      "desc_compare": "Run the same prompt side-by-side on 2 harnesses or models to compare.",
+      "desc_captain": "Launch a standalone coordinator Captain with its own mission and shared rules.",
       "placeholder_build_review": "Describe what to build or fix (e.g. Implement OAuth login flow and verify tests)…",
       "placeholder_fanout": "Overall mission goal for the parallel swarm…",
       "placeholder_compare": "Enter the prompt or problem to run on both agents side-by-side…",
       "placeholder_captain": "Describe this Captain's ongoing mission or coordination instructions…",
-      "subtasks_label": "Parallel Subtasks (1 line = 1 parallel worker, up to 8)",
+      "subtasks_label": "Parallel Subtasks (1 line = 1 worker, up to 8)",
       "subtasks_placeholder": "1. Audit backend API routes\n2. Refactor UI state hooks\n3. Write integration tests",
       "options_show": "+ Options",
       "options_hide": "Hide Options",
@@ -44,9 +51,21 @@
       "custom_harness_placeholder": "e.g. acp.gemini, hermes, pi",
       "custom_secondary_placeholder": "e.g. acp.gemini, hermes, pi",
       "launch_mission": "Launch",
-      "launch_captain": "Create Captain"
+      "launch_captain": "Create Captain",
+      "auto_report_label": "Auto-report to Captain",
+      "auto_report_hint": "Send worker completion summaries back to this Captain chat.",
+      "stage_swarm": "Swarm",
+      "stage_captain": "Captain",
+      "footer_ready": "Ready to launch",
+      "footer_agents_one": "{n} agent",
+      "footer_agents_many": "{n} agents",
+      "footer_files_one": "{n} file",
+      "footer_files_many": "{n} files",
+      "footer_images_one": "{n} image",
+      "footer_images_many": "{n} images"
     },
     "stats": {
+      "captain_singular": "Captain",
       "captains": "Captains",
       "workers": "Crew",
       "running": "Running",
@@ -54,13 +73,15 @@
     },
     "tabs": {
       "fleet": "Fleet",
+      "launch": "Launch",
       "workflows": "Workflows",
-      "chats": "Existing Chats",
-      "activity": "Activity"
+      "chats": "Chats",
+      "activity": "Activity",
+      "new_short": "New"
     },
     "attention": {
-      "title": "Needs Your Attention",
-      "open_chat": "Open Chat",
+      "title": "Needs You",
+      "open_chat": "Open",
       "resolve": "Resolve",
       "awaiting_input": "Awaiting your input or approval",
       "errored": "Turn errored",
@@ -68,14 +89,18 @@
     },
     "fleet": {
       "empty_title": "No Captains on deck yet",
-      "empty_body": "Use the Quick Mission Composer above to launch a Build → Review pipeline, Parallel Swarm, 2-Agent Comparison, or standalone Captain — or promote an existing chat.",
-      "no_crew": "No crew workers assigned yet. Spawn a worker on any harness or attach an existing chat.",
-      "spawn_worker": "+ Worker",
+      "empty_body": "Start a Build → Review pipeline, Parallel Swarm, 2-Agent Comparison, or standalone Captain — or promote an existing chat.",
+      "new_mission": "New Mission",
+      "no_crew": "No crew assigned yet.",
+      "spawn_worker": "Worker",
       "attach_chat": "Attach Chat",
       "inspector": "Inspector",
       "open_chat": "Open Chat",
       "edit": "Edit",
       "demote": "Demote",
+      "remove": "Remove Captain (keeps chats)",
+      "expand": "Expand",
+      "collapse": "Collapse",
       "auto_report_on": "Auto-report",
       "auto_report_off": "Manual",
       "schedule_badge": "Every {mins}m",
@@ -86,7 +111,8 @@
       "mission_label": "Mission",
       "rules_label": "Shared Rules",
       "digest_label": "Live Digest",
-      "crew_tree_label": "Crew Tree"
+      "crew_tree_label": "Crew Tree",
+      "clear_all": "Clear All"
     },
     "workflows": {
       "heading": "Cross-Harness Workflows",
@@ -102,16 +128,31 @@
     },
     "chats": {
       "heading": "Promote or Attach Existing Chats",
+      "subtitle": "Promote any active session to a Captain or attach it as a worker.",
       "empty_title": "No unassigned chats",
       "empty_body": "Every active chat is already assigned to Captain Deck, or no chats have been created yet.",
       "promote": "Promote to Captain",
-      "attach": "Attach as Worker"
+      "promote_short": "Promote",
+      "attach": "Attach as Worker",
+      "attach_short": "Attach"
     },
     "activity": {
       "heading": "Orchestration Activity",
+      "subtitle": "Live spawns, completions, handoffs, and attention alerts.",
       "clear": "Clear",
       "empty_title": "No orchestration events yet",
       "empty_body": "Spawns, completions, automated handoffs, and attention alerts appear here in real time."
+    },
+    "draft_badge": "Draft",
+    "draft_tooltip": "Unsaved draft — click Close to dismiss or finish your mission",
+    "attachments": {
+      "add_btn": "Image / File",
+      "drop_hint": "Drop image/file to attach",
+      "drag_tip": "or drag & drop files here",
+      "path_placeholder": "Paste image/file path...",
+      "add_confirm": "Add",
+      "paste_clipboard": "Paste Clipboard",
+      "remove": "Remove attachment"
     }
   },
   "badges": {
@@ -141,11 +182,26 @@
     "steer_placeholder": "Message or steer this worker…"
   },
   "dialogs": {
+    "back": "Back",
     "cancel": "Cancel",
     "save": "Save",
     "create": "Create",
     "spawn": "Spawn Worker",
-    "attach": "Attach"
+    "attach": "Attach",
+    "steer_title": "Steer Worker",
+    "steer_desc": "Send live guidance to steer a running turn or queue a follow-up message.",
+    "queue": "Queue",
+    "steer_now": "Steer Now",
+    "delete_title": "Remove Captain",
+    "delete_desc": "Demote this Captain from Captain Deck. All Zeron chat sessions remain intact.",
+    "delete_confirm": "Remove Captain",
+    "clear_all_title": "Clear All Orchestrations",
+    "clear_all_desc": "Remove all Captains, Crew links, and sidebar badges from Captain Deck.",
+    "clear_all_counts": "{captains} Captains · {workers} Crew Workers · {events} Activity Events",
+    "clear_all_events_label": "Also clear Activity history",
+    "clear_all_events_hint": "Clear orchestration timeline events along with Captains and Crew.",
+    "clear_all_note": "Removes all Captains, Crew links, and sidebar badges from Captain Deck immediately. Underlying Zeron chat threads remain safely in Zeron's sidebar unless you archive them there.",
+    "clear_all_confirm": "Delete All"
   },
   "toast": {
     "promoted": "Promoted to Captain",
@@ -155,6 +211,10 @@
     "worker_detached": "Detached worker from Captain",
     "message_sent": "Message sent",
     "workflow_launched": "Mission launched",
-    "saved": "Saved"
+    "saved": "Saved",
+    "cleared_all": "Cleared all orchestrations",
+    "max_attachments": "Maximum 8 attachments allowed",
+    "clipboard_empty": "Clipboard does not contain a file path",
+    "enter_path": "Enter or paste a file path first"
   }
 }

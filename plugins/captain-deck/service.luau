@@ -56,6 +56,85 @@ local function non_empty(s: any): string?
 	return if t ~= "" then t else nil
 end
 
+local function sanitize_harness_id(raw: any): string
+	local s = trim(raw)
+	if s == "" then
+		return ""
+	end
+	local comma = string.find(s, ",", 1, true)
+	if comma then
+		s = trim(string.sub(s, 1, comma - 1))
+	end
+	s = string.lower(s)
+	if s == "" then
+		return ""
+	end
+	return s
+end
+
+local function clean_attachment_path(raw: any): string
+	local s = ""
+	if type(raw) == "string" then
+		s = raw
+	elseif type(raw) == "table" and type(raw.path) == "string" then
+		s = raw.path
+	else
+		return ""
+	end
+	s = trim(s)
+	while #s >= 2 do
+		local first = string.sub(s, 1, 1)
+		local last = string.sub(s, -1)
+		if (first == '"' and last == '"') or (first == "'" and last == "'") then
+			s = trim(string.sub(s, 2, -2))
+		else
+			break
+		end
+	end
+	return s
+end
+
+local function normalize_attachments(raw: any): { string }
+	local out: { string } = {}
+	if type(raw) ~= "table" then
+		return out
+	end
+	local seen: { [string]: boolean } = {}
+	local function add_entry(entry: any)
+		if #out >= 12 then
+			return
+		end
+		local p = clean_attachment_path(entry)
+		if p ~= "" and not seen[p] then
+			seen[p] = true
+			table.insert(out, p)
+		end
+	end
+	if type((raw :: any).path) == "string" then
+		add_entry(raw)
+		return out
+	end
+	for _, entry in raw do
+		add_entry(entry)
+		if #out >= 12 then
+			break
+		end
+	end
+	return out
+end
+
+local function append_attachment_context(prompt: string, attachments: { string }): string
+	if type(attachments) ~= "table" or #attachments == 0 then
+		return prompt
+	end
+	local lines: { string } = { "", "Attached Reference Files / Images:" }
+	for _, p in attachments do
+		table.insert(lines, `- {p}`)
+	end
+	table.insert(lines, "Inspect these attached files/images carefully as visual/technical reference for the task.")
+	return prompt .. "\n" .. table.concat(lines, "\n")
+end
+
 local function clip(s: any, max_len: number): string
 	if type(s) ~= "string" then
 		return ""
@@ -98,6 +177,8 @@ local function load_state(): any
 			notify_on_attention = true,
 			default_reviewer_harness = "",
 		}
+	else
+		s.prefs.default_reviewer_harness = sanitize_harness_id(s.prefs.default_reviewer_harness)
 	end
 	return s
 end
@@ -123,6 +204,27 @@ local function push_event(kind: string, summary: string, captain_id: string?, ch
 	})
 	while #state.events > MAX_EVENTS do
 		table.remove(state.events)
+	end
+end
+
+local function deliver_attachments(chat_id: string, attachments: { string })
+	if type(attachments) ~= "table" or #attachments == 0 then
+		return
+	end
+	local ok, err = pcall(function()
+		return zeron.send_message({
+			chat = chat_id,
+			text = "Reference images/files attached for this task.",
+			attachments = attachments,
+			mode = "queue",
+		}):await()
+	end)
+	if not ok then
+		local w = state.workers[chat_id]
+		local cap_id = if w then w.captain_id elseif state.captains[chat_id] then chat_id else nil
+		local msg = `Could not attach {#attachments} reference file(s) to {chat_id}: {tostring(err)}`
+		print(`captain-deck: {msg}`)
+		push_event("attachments_notice", msg, cap_id, chat_id)
 	end
 end
 
@@ -364,7 +466,8 @@ local function spawn_worker_internal(args: any): any
 	end
 	local role = non_empty(args.role) or "worker"
 	local task = non_empty(args.task) or clip(raw_prompt, 72)
-	local full_prompt = build_worker_prompt(cap, role, task, raw_prompt)
+	local attachments = normalize_attachments(args.attachments)
+	local full_prompt = append_attachment_context(build_worker_prompt(cap, role, task, raw_prompt), attachments)
 
 	local res = safe_new_chat({
 		prompt = full_prompt,
@@ -404,6 +507,7 @@ local function spawn_worker_internal(args: any): any
 			device = non_empty(args.handoff.device) or non_empty(args.device),
 			cwd = non_empty(args.handoff.cwd) or non_empty(args.cwd),
 			prompt_template = trim(args.handoff.prompt_template),
+			attachments = if type(args.handoff.attachments) == "table" then normalize_attachments(args.handoff.attachments) elseif #attachments > 0 then attachments else nil,
 		}
 	end
 
@@ -429,6 +533,7 @@ local function spawn_worker_internal(args: any): any
 	cap.updated_at = now
 	local hlabel = harness or "default"
 	push_event("worker_spawned", `Spawned {role} ({hlabel}): {task}`, captain_id, chat_id)
+	deliver_attachments(chat_id, attachments)
 	save_and_emit()
 	return worker
 end
@@ -442,12 +547,14 @@ local function create_captain_internal(args: any): any
 		raw_prompt = if mission ~= "" then mission else `You are Captain "{name}". Break down upcoming work, coordinate workers across any harness using Captain Deck tools, and keep a clear digest of what needs human decisions.`
 	end
 
+	local attachments = normalize_attachments(args.attachments)
 	local full_prompt = raw_prompt
 	if rules ~= "" then
 		full_prompt = `[Captain Mission: {mission}]\n[Shared Crew Rules]\n{rules}\n\n{raw_prompt}`
 	elseif mission ~= "" and raw_prompt ~= mission then
 		full_prompt = `[Captain Mission: {mission}]\n\n{raw_prompt}`
 	end
+	full_prompt = append_attachment_context(full_prompt, attachments)
 
 	local res = safe_new_chat({
 		prompt = full_prompt,
@@ -480,6 +587,7 @@ local function create_captain_internal(args: any): any
 	})
 	cap.status = "running"
 	push_event("captain_created", `Launched Captain "{cap.name}" ({cap.harness or "default"})`, chat_id, chat_id)
+	deliver_attachments(chat_id, attachments)
 	save_and_emit()
 	return cap
 end
@@ -525,6 +633,14 @@ local function trigger_handoff(worker: any, reply_text: string)
 	local prompt = string.gsub(stage.prompt_template, "{{REPORT}}", function()
 		return report
 	end)
+	local cap = state.captains[worker.captain_id]
+	local handoff_attachments = stage.attachments
+	if (type(handoff_attachments) ~= "table" or #handoff_attachments == 0) and cap and type(cap.pending_workflow) == "table" then
+		handoff_attachments = cap.pending_workflow.attachments
+	end
+	if cap and cap.pending_workflow ~= nil then
+		cap.pending_workflow = nil
+	end
 	local ok, result = pcall(spawn_worker_internal, {
 		captain_id = worker.captain_id,
 		role = stage.role or "reviewer",
@@ -538,6 +654,7 @@ local function trigger_handoff(worker: any, reply_text: string)
 		device = stage.device,
 		cwd = stage.cwd,
 		workflow_id = worker.workflow_id,
+		attachments = handoff_attachments,
 	})
 	if ok then
 		push_event("handoff", `Handoff {worker.role} -> {stage.role or "reviewer"} ({stage.harness or "default"})`, worker.captain_id, result.chat_id)
@@ -761,8 +878,8 @@ zeron.serve("sync_settings", function(args: any)
 		if type(args.notify_on_attention) == "boolean" then
 			state.prefs.notify_on_attention = args.notify_on_attention
 		end
-		if type(args.default_reviewer_harness) == "string" then
-			state.prefs.default_reviewer_harness = trim(args.default_reviewer_harness)
+		if args.default_reviewer_harness ~= nil then
+			state.prefs.default_reviewer_harness = sanitize_harness_id(args.default_reviewer_harness)
 		end
 		save_and_emit()
 	end
@@ -842,17 +959,29 @@ zeron.serve("remove_captain", function(args: any)
 		error("chat_id is required", 0)
 	end
 	local cap = state.captains[chat_id]
+	local chat_ids: { string } = {}
+	local removed_workers = 0
 	if cap then
 		state.captains[chat_id] = nil
-		for wid, w in state.workers do
-			if w.captain_id == chat_id then
-				state.workers[wid] = nil
-			end
+		table.insert(chat_ids, chat_id)
+	end
+	local to_remove: { string } = {}
+	for wid, w in state.workers do
+		if w.captain_id == chat_id then
+			table.insert(to_remove, wid)
 		end
-		push_event("captain_removed", `Demoted Captain "{cap.name}"`, chat_id, chat_id)
+	end
+	for _, wid in to_remove do
+		state.workers[wid] = nil
+		removed_workers += 1
+		table.insert(chat_ids, wid)
+	end
+	if cap or removed_workers > 0 then
+		local label = if cap then `Demoted Captain "{cap.name}"` else `Removed orphaned crew ({removed_workers}) for {chat_id}`
+		push_event("captain_removed", label, chat_id, chat_id)
 		save_and_emit()
 	end
-	return { ok = true }
+	return { ok = true, removed_workers = removed_workers, chat_ids = chat_ids }
 end)
 
 zeron.serve("spawn_worker", function(args: any)
@@ -912,17 +1041,46 @@ end)
 zeron.serve("message_chat", function(args: any)
 	local chat_id = non_empty(args and args.chat_id)
 	local text = trim(args and args.text or "")
-	if not chat_id or text == "" then
+	local attachments = normalize_attachments(args and args.attachments)
+	if not chat_id or (text == "" and #attachments == 0) then
 		error("chat_id and text are required", 0)
 	end
+	if text == "" then
+		text = "Reference images/files attached."
+	end
 	local mode = if args and args.mode == "steer" then "steer" else "queue"
-	local res = zeron.send_message({
-		chat = chat_id,
-		text = text,
-		mode = mode,
-	}):await()
 	local w = state.workers[chat_id]
 	local cap_id = if w then w.captain_id elseif state.captains[chat_id] then chat_id else nil
+	local res: any
+	if #attachments > 0 then
+		local ok, send_res = pcall(function()
+			return zeron.send_message({
+				chat = chat_id,
+				text = text,
+				attachments = attachments,
+				mode = mode,
+			}):await()
+		end)
+		if ok then
+			res = send_res
+		else
+			local err_str = tostring(send_res)
+			print(`captain-deck: message_chat attachments rejected ({err_str}), retrying without attachments`)
+			push_event("attachments_notice", `Could not attach {#attachments} file(s); sent path references instead: {err_str}`, cap_id, chat_id)
+			local fallback_text = append_attachment_context(text, attachments)
+			res = zeron.send_message({
+				chat = chat_id,
+				text = fallback_text,
+				mode = mode,
+			}):await()
+		end
+	else
+		res = zeron.send_message({
+			chat = chat_id,
+			text = text,
+			mode = mode,
+		}):await()
+	end
 	push_event("message_sent", `Sent ({mode}) to {if w then w.role else "chat"}: {clip(text, 72)}`, cap_id, chat_id)
 	save_and_emit()
 	return res
@@ -960,6 +1118,45 @@ zeron.serve("clear_events", function()
 	state.events = {}
 	save_and_emit()
 	return { ok = true }
+end)
+
+zeron.serve("clear_all", function(args: any)
+	local removed_captains = 0
+	local removed_workers = 0
+	local chat_ids: { string } = {}
+	local seen: { [string]: boolean } = {}
+
+	for cid, _ in state.captains do
+		removed_captains += 1
+		if not seen[cid] then
+			seen[cid] = true
+			table.insert(chat_ids, cid)
+		end
+	end
+	for wid, _ in state.workers do
+		removed_workers += 1
+		if not seen[wid] then
+			seen[wid] = true
+			table.insert(chat_ids, wid)
+		end
+	end
+
+	state.captains = {}
+	state.workers = {}
+
+	if type(args) == "table" and args.include_events == true then
+		state.events = {}
+	else
+		push_event("fleet_cleared", `Cleared fleet ({removed_captains} captain(s), {removed_workers} worker(s))`, nil, nil)
+	end
+
+	save_and_emit()
+	return {
+		ok = true,
+		removed_captains = removed_captains,
+		removed_workers = removed_workers,
+		chat_ids = chat_ids,
+	}
 end)
 
 zeron.serve("prune_deleted", function(args: any)
@@ -1027,6 +1224,7 @@ zeron.serve("launch_workflow", function(args: any)
 	local device = non_empty(args.device) or current_device_id()
 	local fallback_project = non_empty(args.fallback_project)
 	local cwd = non_empty(args.cwd)
+	local attachments = normalize_attachments(args and args.attachments)
 
 	-- Either reuse an existing Captain or launch a dedicated Captain thread.
 	local captain_id = non_empty(args.captain_id)
@@ -1042,6 +1240,7 @@ zeron.serve("launch_workflow", function(args: any)
 			device = device,
 			fallback_project = fallback_project,
 			cwd = cwd,
+			attachments = attachments,
 			prompt = `You are the Captain coordinating workflow "{preset}" for:\n\n{task}\n\nCaptain Deck is spawning your crew right now and will auto-report each worker's completion here. Wait for crew reports, synthesize results, and flag any blockers with captain_update_digest.`,
 		})
 		captain_id = cap.chat_id
@@ -1051,7 +1250,15 @@ zeron.serve("launch_workflow", function(args: any)
 	if preset == "build_review" then
 		local reviewer_harness = non_empty(args.secondary_harness)
 		if not reviewer_harness and state.prefs then
-			reviewer_harness = non_empty(state.prefs.default_reviewer_harness)
+			reviewer_harness = non_empty(sanitize_harness_id(state.prefs.default_reviewer_harness))
+		end
+		local cap_obj = if captain_id then state.captains[captain_id] else nil
+		if cap_obj and #attachments > 0 then
+			cap_obj.pending_workflow = {
+				workflow_id = workflow_id,
+				preset = preset,
+				attachments = attachments,
+			}
 		end
 		local review_prompt = "Review the work just completed for this task (read-only; do NOT edit files or commit unless asked):\n\nOriginal Task:\n"
 			.. task
@@ -1068,6 +1275,7 @@ zeron.serve("launch_workflow", function(args: any)
 			device = device,
 			cwd = cwd,
 			workflow_id = workflow_id,
+			attachments = attachments,
 			handoff = {
 				role = "reviewer",
 				task = `Review: {clip(task, 60)}`,
@@ -1077,6 +1285,7 @@ zeron.serve("launch_workflow", function(args: any)
 				fallback_project = fallback_project,
 				device = device,
 				cwd = cwd,
+				attachments = attachments,
 				prompt_template = review_prompt,
 			},
 		})
@@ -1109,6 +1318,7 @@ zeron.serve("launch_workflow", function(args: any)
 				device = device,
 				cwd = cwd,
 				workflow_id = workflow_id,
+				attachments = attachments,
 			})
 			if ok then
 				table.insert(spawned, w_or_err)
@@ -1148,6 +1358,7 @@ zeron.serve("launch_workflow", function(args: any)
 			device = device,
 			cwd = cwd,
 			workflow_id = workflow_id,
+			attachments = attachments,
 		})
 		if ok1 then
 			table.insert(spawned, w1_or_err)
@@ -1167,6 +1378,7 @@ zeron.serve("launch_workflow", function(args: any)
 			device = device,
 			cwd = cwd,
 			workflow_id = workflow_id,
+			attachments = attachments,
 		})
 		if ok2 then
 			table.insert(spawned, w2_or_err)
